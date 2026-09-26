@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "name": "Epoch",
+  "locales": { "default": "en", "list": ["en", "de"] },
+  "targets": [
+    { "id": "play-phone", "store": "play", "device": "phone", "size": [1080, 1920] }
+  ],
+  "theme": {
+    "fonts": {
+      "heading": "fonts/Poppins-SemiBold.ttf",
+      "body": "fonts/Poppins-Regular.ttf"
+    },
+    "colors": {
+      "brand": "#F0561F",
+      "brandLight": "#FF8A5B",
+      "cream": "#FDF1E3",
+      "ink": "#2B1D14",
+      "white": "#FFFFFF"
+    }
+  },
+  "screens": [
+    {
+      "id": "progress",
+      "background": { "type": "linear-gradient", "angle": 160, "stops": [["$brand", 0], ["$brandLight", 1]] },
+      "layers": [
+        { "type": "text", "text": "@caption.progress.title", "font": "$heading", "size": 0.078, "color": "$white", "box": { "x": 0.08, "y": 0.04, "w": 0.84, "h": 0.12 }, "valign": "bottom" },
+        { "type": "text", "text": "@caption.progress.sub", "font": "$body", "size": 0.04, "color": "#FFFFFFD9", "box": { "x": 0.1, "y": 0.172, "w": 0.8, "h": 0.05 } },
+        { "type": "device", "frame": "pixel-9-pro", "capture": "01_progress.png", "box": { "x": 0.13, "y": 0.25, "w": 0.74, "h": 0.8 } }
+      ]
+    },
+    {
+      "id": "timeline",
+      "background": { "type": "solid", "color": "$cream" },
+      "layers": [
+        { "type": "text", "text": "@caption.timeline.title", "font": "$heading", "size": 0.078, "color": "$ink", "box": { "x": 0.08, "y": 0.04, "w": 0.84, "h": 0.12 }, "valign": "bottom" },
+        { "type": "text", "text": "@caption.timeline.sub", "font": "$body", "size": 0.04, "color": "#2B1D14B3", "box": { "x": 0.1, "y": 0.172, "w": 0.8, "h": 0.05 } },
+        { "type": "shape", "shape": "ellipse", "color": "#F0561F22", "box": { "x": 0.45, "y": 0.5, "w": 0.9, "h": 0.5 } },
+        { "type": "device", "frame": "pixel-9-pro", "variant": "porcelain", "capture": "02_timeline.png", "box": { "x": 0.13, "y": 0.25, "w": 0.74, "h": 0.8 } }
+      ]
+    },
+    {
+      "id": "add-event",
+      "background": { "type": "linear-gradient", "angle": 200, "stops": [["$brand", 0], ["#C73E0E", 1]] },
+      "layers": [
+        { "type": "text", "text": "@caption.add.title", "font": "$heading", "size": 0.078, "color": "$white", "box": { "x": 0.08, "y": 0.04, "w": 0.84, "h": 0.12 }, "valign": "bottom" },
+        { "type": "text", "text": "@caption.add.sub", "font": "$body", "size": 0.04, "color": "#FFFFFFD9", "box": { "x": 0.1, "y": 0.172, "w": 0.8, "h": 0.05 } },
+        { "type": "device", "frame": "pixel-9-pro", "capture": "03_add_event.png", "rotate": -4, "box": { "x": 0.13, "y": 0.26, "w": 0.74, "h": 0.8 } }
+      ]
+    },
+    {
+      "id": "profile",
+      "background": { "type": "solid", "color": "$cream" },
+      "layers": [
+        { "type": "text", "text": "@caption.profile.title", "font": "$heading", "size": 0.078, "color": "$ink", "box": { "x": 0.08, "y": 0.04, "w": 0.84, "h": 0.12 }, "valign": "bottom" },
+        { "type": "text", "text": "@caption.profile.sub", "font": "$body", "size": 0.04, "color": "#2B1D14B3", "box": { "x": 0.1, "y": 0.172, "w": 0.8, "h": 0.05 } },
+        { "type": "device", "frame": "pixel-9-pro", "variant": "hazel", "capture": "04_profile.png", "box": { "x": 0.13, "y": 0.25, "w": 0.74, "h": 0.8 } }
+      ]
+    }
+  ],
+  "captions": {
+    "progress.title": { "en": "See your year at a glance", "de": "Dein Jahr auf einen Blick" },
+    "progress.sub": { "en": "Every day is a dot", "de": "Jeder Tag ist ein Punkt" },
+    "timeline.title": { "en": "Count down to what matters", "de": "Zähl die Tage bis zu dem, was wirklich zählt" },
+    "timeline.sub": { "en": "Birthdays, trips and milestones", "de": "Geburtstage, Reisen und Meilensteine" },
+    "add.title": { "en": "Add a moment in seconds", "de": "Momente in Sekunden hinzufügen" },
+    "add.sub": { "en": "Pick an icon, a date, done", "de": "Symbol wählen, Datum setzen, fertig" },
+    "profile.title": { "en": "Your life, in years", "de": "Dein Leben in Jahren" },
+    "profile.sub": { "en": "Make the weeks ahead count", "de": "Mach die kommenden Wochen wertvoll" }
+  }
+}
