@@ -4,7 +4,7 @@ A tool for making App Store and Google Play screenshots: upload raw captures,
 put them in real device frames, compose them on store-sized canvases with
 backgrounds and text, and export exactly what each store accepts.
 
-This folder is the plan. No code yet.
+Status: phase 0 (foundations) is built. See [Getting started](#getting-started).
 
 ## The bet in one paragraph
 
@@ -28,10 +28,43 @@ than an engine bolted onto an editor.
 | [05 Roadmap](docs/05-roadmap.md) | Phases, scope and exit criteria |
 | [06 Risks and open questions](docs/06-risks-and-open-questions.md) | What could sink it and what still needs a decision |
 
-## Decisions needed from you before phase 0
+## Getting started
 
-1. Product name, so the repo, CLI command and file extension can be fixed.
-2. Licence and business model. The recommendation is an open-source engine
-   and CLI with a free editor, paid features later. See the risks doc.
+Needs Node 22 or later and pnpm 9.
+
+```
+pnpm install
+pnpm check                  # typecheck and tests
+pnpm render:example         # renders examples/epoch to examples/epoch/store/
+```
+
+The CLI runs straight from TypeScript source (Node strips the types):
+
+```
+node apps/cli/src/main.ts render examples/epoch --fastlane
+node apps/cli/src/main.ts validate examples/epoch
+node apps/cli/src/main.ts frames list
+node apps/cli/src/main.ts frames import pixel_10_pro examples/epoch
+```
+
+| Path | What's there |
+|---|---|
+| `packages/schema` | Project types (zod), validation with paths, reference checks, JSON Schema, migrations |
+| `packages/stores` | Play and App Store rules as data, image and set checks |
+| `packages/frames` | Vector frame catalog (Pixel 9 Pro, Pixel 7, generic Android) and the emulator skin importer |
+| `packages/core` | The renderer, text layout, deterministic shadows, RGB PNG encoder, export pipeline |
+| `apps/cli` | `storeshots` command and the Node render host; golden tests |
+| `tools/goldens` | Reference images at half size; `UPDATE_GOLDENS=1 pnpm test` regenerates |
+| `examples/epoch` | The dogfood fixture: 4 screens, en and de |
+
+## Decisions still needed from you
+
+Phase 0 went ahead with placeholders. These still block publishing
+anything:
+
+1. Product name. `storeshots` and the `@storeshots/*` scope are placeholders.
+2. Licence and business model. No licence file yet, so the code is all rights
+   reserved by default. The recommendation is an open-source engine and CLI
+   with a free editor, paid features later. See the risks doc.
 3. Confirm the platform order in ADR 0001: web editor and CLI first, desktop
    later only if the triggers in that ADR fire.
