@@ -1,0 +1,10 @@
+{
+  "name": "storeshots",
+  "short_name": "storeshots",
+  "description": "Design App Store and Google Play screenshots, then export exactly what each store accepts.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#dfe2e6",
+  "theme_color": "#16181c",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

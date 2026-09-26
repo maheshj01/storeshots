@@ -4,7 +4,8 @@ A tool for making App Store and Google Play screenshots: upload raw captures,
 put them in real device frames, compose them on store-sized canvases with
 backgrounds and text, and export exactly what each store accepts.
 
-Status: phase 0 (foundations) is built. See [Getting started](#getting-started).
+Status: phase 0 (foundations) and phase 1 (the web editor) are built. See
+[Getting started](#getting-started).
 
 ## The bet in one paragraph
 
@@ -36,9 +37,15 @@ Needs Node 22 or later and pnpm 9.
 ```
 pnpm install
 pnpm check                  # typecheck and tests
+pnpm dev                    # the editor on http://localhost:5180
 pnpm render:example         # renders examples/epoch to examples/epoch/store/
 pnpm parity                 # opens the browser-versus-Node comparison on :5173
 ```
+
+To try the editor with real captures: New project, pick a template, then
+drag `examples/epoch/captures/en/*.png` onto the table. They fill the empty
+phones in order. Export gives a zip of store-ready PNGs; "Project .zip"
+gives a folder the CLI can render.
 
 The CLI runs straight from TypeScript source (Node strips the types):
 
@@ -56,6 +63,7 @@ node apps/cli/src/main.ts frames import pixel_10_pro examples/epoch
 | `packages/frames` | Vector frame catalog (Pixel 9 Pro, Pixel 7, generic Android) and the emulator skin importer |
 | `packages/core` | The renderer, text layout, deterministic shadows, RGB PNG encoder, export pipeline |
 | `apps/cli` | `storeshots` command and the Node render host; golden tests |
+| `apps/web` | The editor: React over the same core, IndexedDB storage, export worker, offline PWA |
 | `tools/parity` | Browser render host and the parity page |
 | `tools/goldens` | Reference images at half size; `UPDATE_GOLDENS=1 pnpm test` regenerates |
 | `examples/epoch` | The dogfood fixture: 4 screens, en and de |

@@ -27,7 +27,21 @@ Prove the risky parts before building UI.
 Exit: a script renders epoch's screenshots into framed, store-valid images
 from a hand-written `storeshots.json`, identically in Node and Chromium.
 
-## Phase 1: Editor MVP, Android first (about 5 to 6 weeks)
+## Phase 1: Editor MVP, Android first (about 5 to 6 weeks) — built, September 2026
+
+Done: everything below, in `apps/web`. How it differs from the plan:
+
+- Storage is IndexedDB only (projects, files and thumbnails); OPFS wasn't
+  needed.
+- Text is edited in the inspector (double-click or Enter on the canvas
+  focuses it), not inline on the canvas.
+- Snapping guides apply while moving. Resizing doesn't snap yet.
+- The editor is verified with unit tests of the store, actions and
+  templates, plus manual checks in Chromium: drop captures, drag, resize,
+  rotate, undo, export in the worker, zip round trip, offline reload, and a
+  project saved by the editor rendered by the CLI.
+- Not done: Playwright end-to-end tests, and testing Open folder, which
+  needs a real folder picker.
 
 The two features from the original brief, done properly.
 
