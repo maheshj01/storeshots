@@ -1,0 +1,19 @@
+{
+  "name": "storeshots-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.3.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "for p in packages/* apps/* tools/*; do [ -f $p/tsconfig.json ] || continue; tsc -p $p --noEmit || exit 1; done",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}
