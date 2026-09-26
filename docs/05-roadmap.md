@@ -3,7 +3,13 @@
 Durations assume one experienced full-time developer. Each phase ends with
 something a real user can use; epoch is the first dogfood project.
 
-## Phase 0: Foundations (about 2 weeks)
+## Phase 0: Foundations (about 2 weeks) — built, September 2026
+
+Done: everything below. The parity result is in ADR 0002. Differences from
+the plan: frames are parametric data drawn with canvas paths, not SVG files,
+so no SVG rasterizer is needed in either environment; the CLI already has
+`render`, `validate` and `frames`, ahead of phase 2. Not done: lint config,
+and a browser parity job in CI (the parity page is manual for now).
 
 Prove the risky parts before building UI.
 

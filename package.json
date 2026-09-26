@@ -10,7 +10,8 @@
     "typecheck": "for p in packages/* apps/* tools/*; do [ -f $p/tsconfig.json ] || continue; tsc -p $p --noEmit || exit 1; done",
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm test",
-    "render:example": "node apps/cli/src/main.ts render examples/epoch"
+    "render:example": "node apps/cli/src/main.ts render examples/epoch",
+    "parity": "pnpm render:example && pnpm --filter @storeshots/parity dev"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

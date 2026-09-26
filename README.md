@@ -22,6 +22,7 @@ than an engine bolted onto an editor.
 |---|---|
 | [01 Vision and market](docs/01-vision-and-market.md) | Who it's for, what competitors do, where we win, what we won't do |
 | [ADR 0001 Platform](docs/decisions/0001-platform.md) | Web app, desktop app, CLI, or all three, and in what order |
+| [ADR 0002 Render parity](docs/decisions/0002-render-parity.md) | Phase 0 spike result: Skia in Node versus the browser |
 | [02 Architecture](docs/02-architecture.md) | Monorepo layout, rendering engine, editor, CLI, frames catalog |
 | [03 Project format](docs/03-project-format.md) | The `storeshots.json` schema that everything reads and writes |
 | [04 Store specs](docs/04-store-specs.md) | Verified Play Store and App Store size rules the exporter enforces |
@@ -36,6 +37,7 @@ Needs Node 22 or later and pnpm 9.
 pnpm install
 pnpm check                  # typecheck and tests
 pnpm render:example         # renders examples/epoch to examples/epoch/store/
+pnpm parity                 # opens the browser-versus-Node comparison on :5173
 ```
 
 The CLI runs straight from TypeScript source (Node strips the types):
@@ -54,6 +56,7 @@ node apps/cli/src/main.ts frames import pixel_10_pro examples/epoch
 | `packages/frames` | Vector frame catalog (Pixel 9 Pro, Pixel 7, generic Android) and the emulator skin importer |
 | `packages/core` | The renderer, text layout, deterministic shadows, RGB PNG encoder, export pipeline |
 | `apps/cli` | `storeshots` command and the Node render host; golden tests |
+| `tools/parity` | Browser render host and the parity page |
 | `tools/goldens` | Reference images at half size; `UPDATE_GOLDENS=1 pnpm test` regenerates |
 | `examples/epoch` | The dogfood fixture: 4 screens, en and de |
 

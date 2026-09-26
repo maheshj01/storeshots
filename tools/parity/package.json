@@ -1,0 +1,12 @@
+{
+  "name": "@storeshots/parity",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite --port 5173 --strictPort" },
+  "dependencies": {
+    "@storeshots/core": "workspace:*",
+    "@storeshots/schema": "workspace:*"
+  },
+  "devDependencies": { "vite": "^8.3.1" }
+}
