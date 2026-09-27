@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, Smartphone, Square, Type, Upload } from "lucide-react";
 import type { Project } from "@storeshots/schema";
 import { CATALOG, type VectorFrame } from "@storeshots/frames";
@@ -6,6 +6,7 @@ import { frameAspect } from "@storeshots/core";
 import { useEditor, useSelectedScreen } from "../state/store.ts";
 import { addImageLayer, addLayer, captureList, fillWithCaptures, moveLayerTo, setCapture, storeCaptures, updateLayer } from "../state/actions.ts";
 import { layerName, TYPE_LABEL } from "./layerName.ts";
+import { useObjectUrls } from "./useObjectUrls.ts";
 import { renderStandalone } from "../engine/preview.ts";
 import { decodeImage } from "../engine/host.ts";
 
@@ -210,8 +211,7 @@ function Screenshots() {
   const screen = useSelectedScreen();
   const input = useRef<HTMLInputElement>(null);
   const names = captureList(assets, doc.locales.default);
-  const urls = useMemo(() => new Map(names.map((n) => [n, URL.createObjectURL(assets.get(`captures/${doc.locales.default}/${n}`)!)])), [assets, names.join()]);
-  useEffect(() => () => urls.forEach((u) => URL.revokeObjectURL(u)), [urls]);
+  const urls = useObjectUrls(names.map((n) => [n, assets.get(`captures/${doc.locales.default}/${n}`)!]));
 
   const layer = screen && selection.layer !== null ? screen.layers[selection.layer] : undefined;
   const current = layer?.type === "device" ? layer.capture : undefined;

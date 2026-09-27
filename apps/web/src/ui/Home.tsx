@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useObjectUrls } from "./useObjectUrls.ts";
 import { FolderOpen, Plus, Trash2, FileArchive } from "lucide-react";
 import { deleteProject, listProjects, loadProject, newProjectId, saveAssets, saveDoc, type ProjectMeta } from "../state/persist.ts";
 import { canUseFolders, importZip, openFolder, type LoadedProject } from "../state/io.ts";
@@ -29,8 +30,7 @@ export function Home() {
   const zip = useRef<HTMLInputElement>(null);
   const refresh = () => listProjects().then(setProjects);
   useEffect(() => void refresh(), []);
-  const thumbs = useMemo(() => new Map((projects ?? []).filter((p) => p.thumbnail).map((p) => [p.id, URL.createObjectURL(p.thumbnail!)])), [projects]);
-  useEffect(() => () => thumbs.forEach((u) => URL.revokeObjectURL(u)), [thumbs]);
+  const thumbs = useObjectUrls((projects ?? []).filter((p) => p.thumbnail).map((p) => [p.id, p.thumbnail!]));
 
   const open = async (m: ProjectMeta) => {
     try {

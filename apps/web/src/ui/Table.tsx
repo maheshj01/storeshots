@@ -94,6 +94,12 @@ function useSpacePan(scroller: React.RefObject<HTMLDivElement | null>) {
   };
 }
 
+/** The things zoom anchors to: each sheet's canvas, then the add-screen tile. */
+function targets(scroller: HTMLElement): HTMLElement[] {
+  const strip = scroller.querySelector(".strip");
+  return [...(strip?.children ?? [])].map((c) => (c.querySelector(".stage") as HTMLElement | null) ?? (c as HTMLElement));
+}
+
 function imageFiles(e: React.DragEvent): File[] {
   return [...e.dataTransfer.files].filter((f) => /^image\/(png|jpeg|webp)$/.test(f.type));
 }
@@ -117,23 +123,70 @@ export function Table() {
   const setWarning = setIssues.find((v) => v.severity === "warning");
 
   const projectId = useEditor((s) => s.projectId);
+
+  /**
+   * Zooming keeps one point fixed on screen: the point under the cursor for
+   * scroll and pinch zoom, the middle of the view for the slider and Fit.
+   * The point is recorded relative to the sheet under it, because gaps and
+   * padding between sheets don't scale with zoom; after the new layout, the
+   * table scrolls so the same spot on that sheet is back under the point.
+   */
+  const anchor = useRef<{ index: number; fx: number; fy: number; x: number; y: number } | null>(null);
+  const zoomAt = (next: number, x?: number, y?: number) => {
+    const el = scroller.current;
+    if (!el) return;
+    const view = el.getBoundingClientRect();
+    const px = x ?? view.left + view.width / 2;
+    const py = y ?? view.top + view.height / 2;
+    const items = targets(el);
+    let index = -1;
+    let best = Infinity;
+    items.forEach((it, i) => {
+      const r = it.getBoundingClientRect();
+      const d = px < r.left ? r.left - px : px > r.right ? px - r.right : 0;
+      if (d < best) [best, index] = [d, i];
+    });
+    if (index >= 0) {
+      const r = items[index]!.getBoundingClientRect();
+      anchor.current = { index, fx: (px - r.left) / r.width, fy: (py - r.top) / r.height, x: px, y: py };
+    }
+    useEditor.getState().setZoom(next);
+  };
+  useLayoutEffect(() => {
+    const a = anchor.current;
+    const el = scroller.current;
+    anchor.current = null;
+    if (!a || !el) return;
+    const r = targets(el)[a.index]?.getBoundingClientRect();
+    if (!r) return;
+    el.scrollLeft += r.left + a.fx * r.width - a.x;
+    el.scrollTop += r.top + a.fy * r.height - a.y;
+  }, [zoom]);
+
   const fit = () => {
     const el = scroller.current;
     if (!el) return;
     // Room for the strip's padding, the slug and the screen tools.
-    useEditor.getState().setZoom((el.clientHeight - 56 - 110) / BASE_HEIGHT);
+    zoomAt((el.clientHeight - 56 - 110) / BASE_HEIGHT);
   };
   useLayoutEffect(fit, [projectId]);
 
-  // Ctrl/Cmd + wheel zooms the table, like design tools.
+  // The wheel listener is attached once; it calls the latest zoomAt.
+  const zoomAtRef = useRef(zoomAt);
+  zoomAtRef.current = zoomAt;
+
+  // Ctrl/Cmd + wheel (and trackpad pinch) zooms the table, like design tools.
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      const { zoom, setZoom } = useEditor.getState();
-      setZoom(zoom * Math.exp(-e.deltaY * 0.01));
+      // Trackpad pinches send many small deltas; mouse wheels send notches of
+      // about 100 (or lines). Scale smoothly for the first, 15% per notch for the second.
+      const notch = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 50;
+      const factor = notch ? Math.pow(1.15, -Math.sign(e.deltaY)) : Math.exp(-e.deltaY * 0.01);
+      zoomAtRef.current(useEditor.getState().zoom * factor, e.clientX, e.clientY);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -204,7 +257,7 @@ export function Table() {
         </button>
         <label className="row" title="Zoom (Ctrl or ⌘ + scroll). Hold Space and drag to pan.">
           <span>{Math.round(zoom * 100)}%</span>
-          <input type="range" min={0.25} max={2} step={0.05} value={zoom} onChange={(e) => useEditor.getState().setZoom(+e.target.value)} aria-label="Zoom" />
+          <input type="range" min={0.25} max={2} step={0.05} value={zoom} onChange={(e) => zoomAt(+e.target.value)} aria-label="Zoom" />
         </label>
       </div>
     </div>
