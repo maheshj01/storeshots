@@ -25,9 +25,37 @@ export interface PreviewState {
 }
 
 /**
+ * Preview renders run one per animation frame, most recent request per
+ * canvas only, so a burst (every screen re-rendering after a zoom) is spread
+ * over frames instead of blocking one. Screens outside the table's view
+ * wait until they scroll into it.
+ */
+const queue = new Map<HTMLCanvasElement, () => Promise<void>>();
+let draining = false;
+
+function schedule(canvas: HTMLCanvasElement, job: () => Promise<void>) {
+  queue.set(canvas, job);
+  if (draining) return;
+  draining = true;
+  const next = () =>
+    requestAnimationFrame(async () => {
+      const entry = queue.entries().next();
+      if (entry.done) {
+        draining = false;
+        return;
+      }
+      const [key, run] = entry.value;
+      queue.delete(key);
+      await run();
+      next();
+    });
+  next();
+}
+
+/**
  * Renders one screen into a visible canvas whenever anything it depends on
- * changes. Renders are coalesced to one per animation frame, and a render
- * that finishes after a newer one started is dropped.
+ * changes, while the canvas is in (or near) the table's view. A render that
+ * finishes after a newer one was requested is dropped.
  */
 export function useScreenPreview(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -43,14 +71,26 @@ export function useScreenPreview(
   const target = useEditor((s) => s.target);
   const assetsVersion = useEditor((s) => s.assetsVersion);
   const [state, setState] = useState<PreviewState>({ warnings: [], error: null });
+  const [visible, setVisible] = useState(true);
   const generation = useRef(0);
+
+  // Track whether the canvas is within a screen's width of the table's view.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const root = canvas?.closest(".table");
+    if (!canvas || !root) return;
+    const io = new IntersectionObserver(([e]) => setVisible(!!e?.isIntersecting), { root, rootMargin: "50%" });
+    io.observe(canvas);
+    return () => io.disconnect();
+  }, [canvasRef]);
 
   useEffect(() => {
     const doc = useEditor.getState().doc;
     const canvas = canvasRef.current;
-    if (!doc || !screen || !canvas || cssWidth <= 0) return;
+    if (!doc || !screen || !canvas || cssWidth <= 0 || !visible) return;
     const gen = ++generation.current;
-    const raf = requestAnimationFrame(async () => {
+    schedule(canvas, async () => {
+      if (gen !== generation.current) return;
       const t = doc.targets.find((x) => x.id === target) ?? doc.targets[0]!;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const scale = Math.min(1, (cssWidth * dpr) / t.size[0]);
@@ -67,13 +107,19 @@ export function useScreenPreview(
           canvas.height = src.height;
         }
         canvas.getContext("2d")!.drawImage(src, 0, 0);
-        setState({ warnings: result.warnings, error: null });
+        // Re-render React only when what it shows changed.
+        setState((prev) =>
+          prev.error === null && JSON.stringify(prev.warnings) === JSON.stringify(result.warnings) ? prev : { warnings: result.warnings, error: null },
+        );
       } catch (e) {
         if (gen === generation.current) setState({ warnings: [], error: (e as Error).message });
       }
     });
-    return () => cancelAnimationFrame(raf);
-  }, [screen, theme, captions, targets, locales, locale, target, assetsVersion, cssWidth, screenId, canvasRef]);
+    return () => {
+      // A newer request replaces this one; bumping the generation drops it if it already started.
+      generation.current++;
+    };
+  }, [screen, theme, captions, targets, locales, locale, target, assetsVersion, cssWidth, screenId, canvasRef, visible]);
 
   return state;
 }

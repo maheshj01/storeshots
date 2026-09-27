@@ -1,4 +1,4 @@
-import type { Ctx, RenderHost } from "./host.ts";
+import type { CanvasLike, Ctx, RenderHost } from "./host.ts";
 
 /**
  * Drop shadows computed in core. Canvas `shadowBlur` is implementation
@@ -77,6 +77,8 @@ export function drawShadow(
   bounds: { x: number; y: number; w: number; h: number },
   spec: ShadowSpec,
   draw: (c: Ctx) => void,
+  /** Identifies the shape `draw` paints, so the blurred result can be reused. */
+  shapeKey?: string,
 ) {
   const sigma = spec.blur / 2;
   const pad = Math.ceil(sigma * 3) + 2;
@@ -84,25 +86,54 @@ export function drawShadow(
   const y0 = Math.floor(bounds.y) - pad;
   const w = Math.ceil(bounds.x + bounds.w) + pad - x0;
   const h = Math.ceil(bounds.y + bounds.h) + pad - y0;
-  const scratch = host.createCanvas(w, h);
-  const sc = scratch.getContext("2d");
-  if (!sc) throw new Error("2d context unavailable");
-  sc.translate(-x0, -y0);
-  sc.fillStyle = "#000000";
-  draw(sc);
+  // A shadow is a soft gradient, so it's blurred at a fraction of the size
+  // and scaled up: 1/k the pixels in each direction, the blur kept at least
+  // 4 px wide at the small size. At preview sizes this is the difference
+  // between a smooth zoom and a stall.
+  const k = Math.max(1, Math.floor(sigma / 4));
+  const cacheKey = shapeKey && `${shapeKey}|${bounds.x},${bounds.y},${bounds.w},${bounds.h}|${spec.blur},${spec.alpha}`;
+  const cache = shadowCache(host);
+  let scratch = cacheKey ? cache.get(cacheKey) : undefined;
+  if (!scratch) {
+    const sw = Math.ceil(w / k);
+    const sh = Math.ceil(h / k);
+    scratch = host.createCanvas(sw, sh);
+    const sc = scratch.getContext("2d");
+    if (!sc) throw new Error("2d context unavailable");
+    sc.scale(1 / k, 1 / k);
+    sc.translate(-x0, -y0);
+    sc.fillStyle = "#000000";
+    draw(sc);
 
-  const img = sc.getImageData(0, 0, w, h);
-  const alpha = new Uint8Array(w * h);
-  for (let i = 0; i < alpha.length; i++) alpha[i] = img.data[i * 4 + 3]!;
-  blurAlpha(alpha, w, h, sigma);
-  const k = Math.round(spec.alpha * 256);
-  for (let i = 0; i < alpha.length; i++) {
-    img.data[i * 4] = 0;
-    img.data[i * 4 + 1] = 0;
-    img.data[i * 4 + 2] = 0;
-    img.data[i * 4 + 3] = (alpha[i]! * k) >> 8;
+    const img = sc.getImageData(0, 0, sw, sh);
+    const alpha = new Uint8Array(sw * sh);
+    for (let i = 0; i < alpha.length; i++) alpha[i] = img.data[i * 4 + 3]!;
+    blurAlpha(alpha, sw, sh, sigma / k);
+    const a = Math.round(spec.alpha * 256);
+    for (let i = 0; i < alpha.length; i++) {
+      img.data[i * 4] = 0;
+      img.data[i * 4 + 1] = 0;
+      img.data[i * 4 + 2] = 0;
+      img.data[i * 4 + 3] = (alpha[i]! * a) >> 8;
+    }
+    sc.setTransform(1, 0, 0, 1, 0, 0);
+    sc.putImageData(img, 0, 0);
+    if (cacheKey) remember(cache, cacheKey, scratch);
   }
-  sc.setTransform(1, 0, 0, 1, 0, 0);
-  sc.putImageData(img, 0, 0);
-  ctx.drawImage(scratch as unknown as CanvasImageSource, x0 + Math.round(spec.offsetX), y0 + Math.round(spec.offsetY));
+  ctx.drawImage(scratch as unknown as CanvasImageSource, x0 + Math.round(spec.offsetX), y0 + Math.round(spec.offsetY), scratch.width * k, scratch.height * k);
+}
+
+/** Blurred shadows per host, most recent last; a handful covers a listing. */
+const caches = new WeakMap<RenderHost, Map<string, CanvasLike>>();
+const CACHE_SIZE = 24;
+
+function shadowCache(host: RenderHost): Map<string, CanvasLike> {
+  let c = caches.get(host);
+  if (!c) caches.set(host, (c = new Map()));
+  return c;
+}
+
+function remember(cache: Map<string, CanvasLike>, key: string, value: CanvasLike) {
+  cache.set(key, value);
+  if (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value!);
 }

@@ -392,10 +392,17 @@ function drawVectorFrame(env: DrawEnv, f: VectorFrame, layer: DeviceLayer, box: 
 
   if (layer.shadow) {
     const bounds = { x: ox, y: oy, w: mm(f.body.w), h: mm(f.body.h) };
-    drawShadow(ctx, env.cache.host, bounds, { blur: mm(10), offsetX: 0, offsetY: mm(3), alpha: 0.3 }, (c) => {
-      roundRect(c, ox, oy, mm(f.body.w), mm(f.body.h), mm(f.body.radius));
-      c.fill();
-    });
+    drawShadow(
+      ctx,
+      env.cache.host,
+      bounds,
+      { blur: mm(10), offsetX: 0, offsetY: mm(3), alpha: 0.3 },
+      (c) => {
+        roundRect(c, ox, oy, mm(f.body.w), mm(f.body.h), mm(f.body.radius));
+        c.fill();
+      },
+      `vector:${f.id}`,
+    );
   }
 
   ctx.fillStyle = variant.button;
@@ -467,7 +474,7 @@ async function drawBitmapFrame(env: DrawEnv, f: BitmapFrame, layer: DeviceLayer,
   const bh = back.height * s;
   if (layer.shadow) {
     const spec = { blur: fw * s * 0.07, offsetX: 0, offsetY: fw * s * 0.02, alpha: 0.3 };
-    drawShadow(ctx, env.cache.host, { x: bx, y: by, w: bw, h: bh }, spec, (c) => drawImage(c, back, bx, by, bw, bh));
+    drawShadow(ctx, env.cache.host, { x: bx, y: by, w: bw, h: bh }, spec, (c) => drawImage(c, back, bx, by, bw, bh), `bitmap:${f.id}`);
   }
   drawImage(ctx, back, bx, by, bw, bh);
 

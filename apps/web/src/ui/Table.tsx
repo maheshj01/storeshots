@@ -135,6 +135,10 @@ export function Table() {
   const zoomAt = (next: number, x?: number, y?: number) => {
     const el = scroller.current;
     if (!el) return;
+    // A zoom in progress is measured as it looks, then replaced by the real layout.
+    const pending = live.current;
+    live.current = null;
+    if (pending) clearTimeout(pending.timer);
     const view = el.getBoundingClientRect();
     const px = x ?? view.left + view.width / 2;
     const py = y ?? view.top + view.height / 2;
@@ -150,12 +154,93 @@ export function Table() {
       const r = items[index]!.getBoundingClientRect();
       anchor.current = { index, fx: (px - r.left) / r.width, fy: (py - r.top) / r.height, x: px, y: py };
     }
+    clearLiveTransform();
     useEditor.getState().setZoom(next);
   };
+
+  /**
+   * While zooming, only the strip's CSS transform changes: the GPU scales
+   * what's already drawn, with no layout and no canvas rendering, so the
+   * gesture keeps up with the pointer. 160 ms after the last input the real
+   * zoom is applied once and every screen re-renders sharp at its new size.
+   */
+  const strip = useRef<HTMLDivElement>(null);
+  const zoomLabel = useRef<HTMLSpanElement>(null);
+  // Uncontrolled, so React doesn't pull the thumb back to the committed zoom mid-drag.
+  const slider = useRef<HTMLInputElement>(null);
+  // The label and slider are written directly (React renders them empty or
+  // uncontrolled) so live zoom can update them without re-rendering the table.
+  useLayoutEffect(() => {
+    if (slider.current) slider.current.value = String(zoom);
+    if (zoomLabel.current) zoomLabel.current.textContent = `${Math.round(zoom * 100)}%`;
+  }, [zoom]);
+  const live = useRef<{ s: number; tx: number; ty: number; x: number; y: number; timer: number } | null>(null);
+  const clearLiveTransform = () => {
+    const st = strip.current;
+    if (!st) return;
+    st.style.transform = "";
+    st.style.willChange = "";
+  };
+  const previewZoom = (factor: number, cx?: number, cy?: number) => {
+    const el = scroller.current;
+    const st = strip.current;
+    if (!el || !st) return;
+    const view = el.getBoundingClientRect();
+    const x = cx ?? view.left + view.width / 2;
+    const y = cy ?? view.top + view.height / 2;
+    const base = useEditor.getState().zoom;
+    const g = live.current ?? { s: 1, tx: 0, ty: 0, x, y, timer: 0 };
+    const s = Math.min(3 / base, Math.max(0.25 / base, g.s * factor));
+    const f = s / g.s;
+    // The strip's untransformed top-left on screen; scale about the pointer.
+    const ox = view.left + st.offsetLeft - el.scrollLeft;
+    const oy = view.top + st.offsetTop - el.scrollTop;
+    g.tx = x - ox - f * (x - ox - g.tx);
+    g.ty = y - oy - f * (y - oy - g.ty);
+    g.s = s;
+    g.x = x;
+    g.y = y;
+    st.style.transformOrigin = "0 0";
+    st.style.willChange = "transform";
+    st.style.transform = `translate(${g.tx}px, ${g.ty}px) scale(${s})`;
+    if (zoomLabel.current) zoomLabel.current.textContent = `${Math.round(base * s * 100)}%`;
+    if (slider.current && document.activeElement !== slider.current) slider.current.value = String(base * s);
+    clearTimeout(g.timer);
+    g.timer = window.setTimeout(() => {
+      if (live.current === g) zoomAtRef.current(base * g.s, g.x, g.y);
+    }, 160);
+    live.current = g;
+  };
+  const liveZoom = () => useEditor.getState().zoom * (live.current?.s ?? 1);
+  /**
+   * Scrolls so a screen sits where the table used to start: a margin in
+   * from the top-left, or centred if the strip is narrower than the view.
+   */
+  const home = (index = 0) => {
+    const el = scroller.current;
+    const item = el && targets(el)[index];
+    if (!el || !item) return;
+    const view = el.getBoundingClientRect();
+    const r = item.getBoundingClientRect();
+    const all = targets(el);
+    const first = all[0]!.getBoundingClientRect();
+    const lastR = all[all.length - 1]!.getBoundingClientRect();
+    const stripW = lastR.right - first.left;
+    const left = stripW + 128 < view.width ? view.left + (view.width - stripW) / 2 + (r.left - first.left) : view.left + 64;
+    el.scrollLeft += r.left - left;
+    el.scrollTop += r.top - (view.top + 56);
+  };
+  const homeNext = useRef<number | null>(null);
+
   useLayoutEffect(() => {
     const a = anchor.current;
     const el = scroller.current;
     anchor.current = null;
+    if (homeNext.current !== null) {
+      const i = homeNext.current;
+      homeNext.current = null;
+      return home(i);
+    }
     if (!a || !el) return;
     const r = targets(el)[a.index]?.getBoundingClientRect();
     if (!r) return;
@@ -163,17 +248,25 @@ export function Table() {
     el.scrollTop += r.top + a.fy * r.height - a.y;
   }, [zoom]);
 
+  /** Zooms so a screen fills the window height, then brings the selected screen into view. */
   const fit = () => {
     const el = scroller.current;
     if (!el) return;
-    // Room for the strip's padding, the slug and the screen tools.
-    zoomAt((el.clientHeight - 56 - 110) / BASE_HEIGHT);
+    const { doc, selection, zoom: current } = useEditor.getState();
+    const index = Math.max(0, doc?.screens.findIndex((s) => s.id === selection.screen) ?? 0);
+    // Room for the top margin, the slug and the screen tools below each screen.
+    const next = Math.min(3, Math.max(0.25, (el.clientHeight - 56 - 110) / BASE_HEIGHT));
+    if (Math.abs(next - current) < 1e-6) return home(index);
+    homeNext.current = index;
+    zoomAt(next);
   };
   useLayoutEffect(fit, [projectId]);
 
-  // The wheel listener is attached once; it calls the latest zoomAt.
+  // The wheel listener is attached once; it calls the latest functions.
   const zoomAtRef = useRef(zoomAt);
   zoomAtRef.current = zoomAt;
+  const previewZoomRef = useRef(previewZoom);
+  previewZoomRef.current = previewZoom;
 
   // Ctrl/Cmd + wheel (and trackpad pinch) zooms the table, like design tools.
   useEffect(() => {
@@ -186,7 +279,7 @@ export function Table() {
       // about 100 (or lines). Scale smoothly for the first, 15% per notch for the second.
       const notch = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 50;
       const factor = notch ? Math.pow(1.15, -Math.sign(e.deltaY)) : Math.exp(-e.deltaY * 0.01);
-      zoomAtRef.current(useEditor.getState().zoom * factor, e.clientX, e.clientY);
+      previewZoomRef.current(factor, e.clientX, e.clientY);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -219,7 +312,7 @@ export function Table() {
         await fillWithCaptures(files);
       }}
     >
-      <div className="strip">
+      <div className="strip" ref={strip}>
         {doc.screens.map((screen, i) => (
           <Sheet key={screen.id} screen={screen} index={i} count={doc.screens.length} width={w} height={h} target={target} />
         ))}
@@ -256,8 +349,8 @@ export function Table() {
           Fit
         </button>
         <label className="row" title="Zoom (Ctrl or ⌘ + scroll). Hold Space and drag to pan.">
-          <span>{Math.round(zoom * 100)}%</span>
-          <input type="range" min={0.25} max={2} step={0.05} value={zoom} onChange={(e) => zoomAt(+e.target.value)} aria-label="Zoom" />
+          <span ref={zoomLabel} />
+          <input ref={slider} type="range" min={0.25} max={3} step={0.01} defaultValue={zoom} onChange={(e) => previewZoom(+e.target.value / liveZoom())} aria-label="Zoom" />
         </label>
       </div>
     </div>
