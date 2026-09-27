@@ -23,6 +23,23 @@ export class ProjectFolder {
     return join(this.dir, "storeshots.json");
   }
 
+  /** Whether this is the project open in the browser (see LiveFolder). */
+  get isLive() {
+    return false;
+  }
+
+  describe(): string {
+    return this.file;
+  }
+
+  /** Where storeshots_render writes images. */
+  outputDir(_project: Project): string {
+    return join(this.dir, "store");
+  }
+
+  /** Publishes files tools wrote outside edit(); nothing to do for a folder on disk. */
+  async flush(): Promise<void> {}
+
   async load(): Promise<Project> {
     let text: string;
     try {

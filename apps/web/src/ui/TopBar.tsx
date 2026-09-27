@@ -4,6 +4,7 @@ import { useEditor } from "../state/store.ts";
 import { canUseFolders, download, exportZip, slug } from "../state/io.ts";
 import { linkFolder, reconnectFolder, useSyncStatus } from "../engine/folderSync.ts";
 import { AiDialog } from "./AiDialog.tsx";
+import { useBridge } from "../engine/bridge.ts";
 import { deviceLabel } from "./Table.tsx";
 import { TextInput } from "./fields.tsx";
 import { ExportDialog } from "./ExportDialog.tsx";
@@ -70,9 +71,7 @@ export function TopBar({ onHome, saved }: { onHome: () => void; saved: boolean }
       </button>
       <span className="divider" />
       <FolderStatus />
-      <button type="button" className="btn" onClick={() => setAi(true)} title="Edit these screenshots with Claude or another AI agent">
-        <Sparkles aria-hidden /> <span className="hide-narrow">AI</span>
-      </button>
+      <AiButton onClick={() => setAi(true)} />
       <button
         type="button"
         className="btn"
@@ -129,5 +128,20 @@ function FolderStatus() {
     <span className={`sync${status.kind === "error" ? " bad" : ""}`} title={status.kind === "error" ? status.message : "Changes save to the folder, and changes made there (by an AI agent, the CLI or git) appear here"}>
       <FolderSync aria-hidden /> <span className="hide-narrow">{label}</span>
     </span>
+  );
+}
+
+function AiButton({ onClick }: { onClick: () => void }) {
+  const status = useBridge((s) => s.status);
+  const connected = status === "connected";
+  return (
+    <button
+      type="button"
+      className={`btn${connected ? " ai-on" : ""}`}
+      onClick={onClick}
+      title={connected ? "Your AI agent is connected to this project" : "Edit these screenshots with Claude or another AI agent"}
+    >
+      <Sparkles aria-hidden /> <span className="hide-narrow">{connected ? "AI connected" : "AI"}</span>
+    </button>
   );
 }

@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { Check, Copy, FolderPlus, X } from "lucide-react";
+import { Check, Copy, FolderPlus, Plug, X } from "lucide-react";
 import { useEditor } from "../state/store.ts";
 import { canUseFolders } from "../state/io.ts";
 import { linkFolder } from "../engine/folderSync.ts";
+import { connectBridge, disconnectBridge, useBridge } from "../engine/bridge.ts";
 import { toast } from "./toast.ts";
 
 /**
  * How to let Claude or another AI agent work on the screenshots. The agent
- * runs the storeshots MCP server on the user's machine, pointed at the
- * project's folder; the editor keeps that folder in sync, so the agent's
- * changes appear here as it makes them.
+ * runs the storeshots MCP server on the user's machine. Either this tab
+ * connects to it directly (the live link) or the project lives in a folder
+ * both sides sync with; either way the agent's changes appear here.
  */
 
 export const PACKAGE = "storeshots-mcp-server";
@@ -23,32 +24,27 @@ const CLIENTS: Array<{ id: Client; label: string }> = [
   { id: "other", label: "Other MCP clients" },
 ];
 
-export function setupSnippet(client: Client, folder: string): { note: string; code: string; lang: string } {
-  const rel = `./${folder}`;
-  const abs = `/path/to/${folder}`;
-  const json = (path: string) =>
-    JSON.stringify({ mcpServers: { storeshots: { command: "npx", args: ["-y", PACKAGE, "--project", path] } } }, null, 2);
+/** Setup for each client; without a folder, the server works on the project open here. */
+export function setupSnippet(client: Client, folder: string | null): { note: string; code: string; lang: string } {
+  const args = folder ? ["-y", PACKAGE, "--project", client === "claude-desktop" || client === "other" ? `/path/to/${folder}` : `./${folder}`] : ["-y", PACKAGE];
+  const json = JSON.stringify({ mcpServers: { storeshots: { command: "npx", args } } }, null, 2);
   switch (client) {
     case "claude-code":
       return {
-        note: `In a terminal, in the folder that contains ${folder}:`,
-        code: `claude mcp add storeshots -- npx -y ${PACKAGE} --project ${rel}`,
+        note: folder ? `In a terminal, in the folder that contains ${folder}:` : "In a terminal:",
+        code: `claude mcp add storeshots -- npx ${args.join(" ")}`,
         lang: "bash",
       };
     case "claude-desktop":
       return {
-        note: `Settings → Developer → Edit Config, then add this to claude_desktop_config.json (use the full path to ${folder}) and restart Claude:`,
-        code: json(abs),
+        note: `Settings → Developer → Edit Config, add this to claude_desktop_config.json${folder ? ` (with the full path to ${folder})` : ""}, then restart Claude:`,
+        code: json,
         lang: "json",
       };
     case "cursor":
-      return { note: `Add this to .cursor/mcp.json in your app's repo:`, code: json(rel), lang: "json" };
+      return { note: "Add this to .cursor/mcp.json (in your project, or ~/.cursor for all projects):", code: json, lang: "json" };
     default:
-      return {
-        note: "Any MCP client that runs local (stdio) servers can start it with:",
-        code: `npx -y ${PACKAGE} --project ${abs}`,
-        lang: "bash",
-      };
+      return { note: "Any MCP client that runs local (stdio) servers can start it with:", code: `npx ${args.join(" ")}`, lang: "bash" };
   }
 }
 
@@ -82,7 +78,7 @@ function CopyBlock({ code }: { code: string }) {
   );
 }
 
-export function AiSetup({ folderName }: { folderName: string }) {
+export function AiSetup({ folderName }: { folderName: string | null }) {
   const [client, setClient] = useState<Client>("claude-code");
   const snippet = setupSnippet(client, folderName);
   return (
@@ -100,10 +96,44 @@ export function AiSetup({ folderName }: { folderName: string }) {
   );
 }
 
+function LiveStatus() {
+  const status = useBridge((s) => s.status);
+  const server = useBridge((s) => s.server);
+  const open = useEditor((s) => s.doc !== null);
+  if (status === "connected") {
+    return (
+      <div className="live ok">
+        <span className="dot" /> Connected to {server}. {open ? "Your agent is working on this project." : "Open a project for your agent to work on."}
+        <button type="button" className="btn ghost" onClick={disconnectBridge}>
+          Disconnect
+        </button>
+      </div>
+    );
+  }
+  if (status === "waiting") {
+    return (
+      <div className="live">
+        <span className="dot waiting" /> Waiting for the MCP server… It starts when your AI tool does; in Claude Code, start a session after adding it.
+        <button type="button" className="btn ghost" onClick={disconnectBridge}>
+          Stop
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="row">
+      <button type="button" className="btn primary" onClick={connectBridge}>
+        <Plug aria-hidden /> Connect this tab
+      </button>
+      <span className="hint">Your browser may ask to allow access to apps on this device.</span>
+    </div>
+  );
+}
+
 export function AiDialog({ onClose }: { onClose: () => void }) {
   const folder = useEditor((s) => s.folder);
   const open = useEditor((s) => s.doc !== null);
-  const folderName = folder?.name ?? "store-assets";
+  const [files, setFiles] = useState(false);
   return (
     <div className="scrim" role="dialog" aria-modal="true" aria-labelledby="ai-title" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="dialog" style={{ width: "min(640px, 100%)" }}>
@@ -117,47 +147,18 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
           <p className="lede-sm">
             Claude and other AI agents can check and edit these screenshots through the storeshots MCP server. The agent reads each
             screen as text (where every layer sits, how captions wrap, what's wrong), so it works fast without looking at images, and
-            its changes appear here as it makes them.
+            you watch its changes appear here. Everything stays on your computer.
           </p>
 
           <ol className="steps">
             <li>
-              <b>Keep the project in a folder</b>
-              {folder ? (
-                <p className="hint">
-                  This project syncs with <code>{folder.name}</code>. Changes go both ways automatically.
-                </p>
-              ) : !open ? (
-                <p className="hint">Open a project from a folder, or link one from the editor's top bar.</p>
-              ) : canUseFolders ? (
-                <>
-                  <p className="hint">Pick a folder, ideally inside your app's repo. The project is saved there and kept in sync.</p>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={async () => {
-                      try {
-                        const name = await linkFolder();
-                        if (name) toast(`Linked to ${name}. Changes sync both ways.`);
-                      } catch (e) {
-                        if ((e as DOMException).name !== "AbortError") toast((e as Error).message, true);
-                      }
-                    }}
-                  >
-                    <FolderPlus aria-hidden /> Link a folder
-                  </button>
-                </>
-              ) : (
-                <p className="hint">
-                  Syncing with a folder needs Chrome or Edge. In this browser, use Project .zip, unzip it into your repo, and point the
-                  agent at that folder.
-                </p>
-              )}
+              <b>Add the MCP server to your AI tool</b>
+              <AiSetup folderName={null} />
+              <p className="hint">Needs Node.js 20 or later. You only do this once.</p>
             </li>
             <li>
-              <b>Add the MCP server to your AI tool</b>
-              <AiSetup folderName={folderName} />
-              <p className="hint">Needs Node.js 20 or later. Nothing is uploaded: the server runs on your computer and only touches that folder.</p>
+              <b>Connect this tab</b>
+              <LiveStatus />
             </li>
             <li>
               <b>Ask for what you want</b>
@@ -168,6 +169,39 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
               </ul>
             </li>
           </ol>
+
+          <details className="alt" open={files} onToggle={(e) => setFiles((e.target as HTMLDetailsElement).open)}>
+            <summary>Prefer keeping the project as files in your app's repo?</summary>
+            <p className="hint">
+              Link the project to a folder and point the server at it. The editor and the folder stay in sync both ways, so this also
+              works with the agent running while the editor is closed, and with git.
+            </p>
+            {folder ? (
+              <p className="hint">
+                This project syncs with <code>{folder.name}</code>.
+              </p>
+            ) : !open ? (
+              <p className="hint">Open a project from a folder, or link one from the editor's top bar.</p>
+            ) : canUseFolders ? (
+              <button
+                type="button"
+                className="btn"
+                onClick={async () => {
+                  try {
+                    const name = await linkFolder();
+                    if (name) toast(`Linked to ${name}. Changes sync both ways.`);
+                  } catch (e) {
+                    if ((e as DOMException).name !== "AbortError") toast((e as Error).message, true);
+                  }
+                }}
+              >
+                <FolderPlus aria-hidden /> Link a folder
+              </button>
+            ) : (
+              <p className="hint">Folder sync needs Chrome or Edge. Elsewhere, use Project .zip and unzip it into your repo.</p>
+            )}
+            <AiSetup folderName={folder?.name ?? "store-assets"} />
+          </details>
         </div>
       </div>
     </div>

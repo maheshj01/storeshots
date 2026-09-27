@@ -12,6 +12,7 @@ import * as ops from "@storeshots/ops";
 import { BUNDLED_FONTS_DIR } from "@storeshots/ops/fonts-dir";
 import { importAndroidSkin, importIosFrame } from "@storeshots/node";
 import { ProjectFolder, pickLocale, pickTarget } from "./project.ts";
+import { LiveFolder, type Bridge } from "./bridge.ts";
 import { counts, findingLine, inspectionText } from "./format.ts";
 
 export const SERVER_NAME = "storeshots-mcp-server";
@@ -24,7 +25,7 @@ const UNITS =
 const projectDir = z
   .string()
   .optional()
-  .describe("Folder containing storeshots.json. Defaults to the folder the server was started with.");
+  .describe('Folder containing storeshots.json, or "live" for the project open in the storeshots editor in the browser. Defaults to what the server was started with.');
 const screenId = z.string().describe('Screen id, e.g. "home". storeshots_get_project lists them.');
 const layerIndex = z.number().int().min(0).describe("Layer number on the screen, 0 = bottom.");
 const locale = z.string().optional().describe("Locale for text, e.g. \"de\". Defaults to the project's default locale.");
@@ -195,16 +196,30 @@ function screenSummary(p: Project, s: Screen, i: ScreenInspection | null, n: num
 
 // Server ----------------------------------------------------------------
 
-export function createServer(defaultDir: string): McpServer {
+export interface ServerOptions {
+  /** The live link to the browser editor; without it, "live" isn't available. */
+  bridge?: Bridge | undefined;
+  /** Where renders of the live project go (storeshots-export/<name> under it). */
+  exportRoot?: string | undefined;
+}
+
+/** `defaultDir` is a folder with a storeshots.json, or "live" for the browser editor's project. */
+export function createServer(defaultDir: string, opts: ServerOptions = {}): McpServer {
   const server = new McpServer(
     { name: SERVER_NAME, version: "0.1.0" },
     {
-      instructions: `Edits App Store and Google Play screenshot designs stored as storeshots.json. Start with storeshots_get_project, read a screen with storeshots_inspect_screen, and change it with the edit tools: each edit returns the updated layout and any problems, so you rarely need to render. ${UNITS} Run storeshots_check before exporting with storeshots_render. Every edit is saved to storeshots.json immediately; use git to review or revert.`,
+      instructions: `Edits App Store and Google Play screenshot designs. The project is a folder with a storeshots.json, or (project_dir "live") the project open in the storeshots web editor, whose screen updates as you edit. Start with storeshots_get_project, read a screen with storeshots_inspect_screen, and change it with the edit tools: each edit returns the updated layout and any problems, so you rarely need to render. ${UNITS} Run storeshots_check before exporting with storeshots_render. Every edit is saved to storeshots.json immediately; use git to review or revert.`,
     },
   );
   const folders = new Map<string, ProjectFolder>();
-  const folderFor = (dir?: string) => {
-    const key = resolve(dir ?? defaultDir);
+  let live: LiveFolder | null = null;
+  const folderFor = (dir?: string): ProjectFolder => {
+    const target = dir ?? defaultDir;
+    if (target === "live") {
+      if (!opts.bridge) throw new Error("the live link to the browser editor isn't running in this server; pass project_dir with a folder instead");
+      return (live ??= new LiveFolder(opts.bridge, opts.exportRoot ?? process.cwd()));
+    }
+    const key = resolve(target);
     let f = folders.get(key);
     if (!f) folders.set(key, (f = new ProjectFolder(key)));
     return f;
@@ -225,7 +240,7 @@ export function createServer(defaultDir: string): McpServer {
         const folder = folderFor(project_dir);
         const p = await folder.load();
         const cache = folder.cache();
-        const lines = [`project ${JSON.stringify(p.name)} · ${folder.file}`];
+        const lines = [`project ${JSON.stringify(p.name)} · ${folder.describe()}`];
         lines.push(`targets: ${p.targets.map((t, i) => `${t.id} ${t.size.join("×")} (${t.store}${t.device ? ` ${t.device}` : ""}, ${t.format})${i === 0 ? " [default]" : ""}`).join(" · ")}`);
         lines.push(`locales: ${p.locales.list.map((l) => (l === p.locales.default ? `${l} (default)` : l)).join(", ")}`);
         lines.push(`theme colours: ${Object.entries(p.theme.colors).map(([k, v]) => `$${k} ${v}`).join(" · ") || "none"}`);
@@ -639,7 +654,10 @@ export function createServer(defaultDir: string): McpServer {
         await copyFile(src, dest);
         const size = await captureSize(folder, p, file, lc);
         let msg = `imported captures/${lc}/${file} (${size.width}×${size.height})`;
-        if (!screen) return ok(msg);
+        if (!screen) {
+          await folder.flush();
+          return ok(msg);
+        }
         const { project, result: li } = await folder.edit((q) => {
           const s = ops.getScreen(q, screen);
           const li = layer ?? s.layers.findIndex((l) => l.type === "device");
@@ -672,6 +690,7 @@ export function createServer(defaultDir: string): McpServer {
     async ({ source, device, use_on, project_dir }) => {
       try {
         const folder = folderFor(project_dir);
+        await folder.load();
         const r = source === "ios" ? await importIosFrame(device, folder.dir) : await importAndroidSkin(device, folder.dir);
         const lines = [`imported ${r.frame.name} as frame "${r.id}" (${r.frame.display.join("×")} screen). ${r.notice}`];
         if (use_on !== "none") {
@@ -695,6 +714,9 @@ export function createServer(defaultDir: string): McpServer {
           lines.push(result.length ? `now used on ${result.join(", ")}` : "no device layers matched");
           const i = await inspectScreen(project, { screen: project.screens[0]!.id }, folder.cache());
           lines.push(inspectionText(i));
+        } else {
+          // The frame's files were written outside an edit; publish them.
+          await folder.flush();
         }
         return ok(lines.join("\n"));
       } catch (e) {
@@ -734,10 +756,10 @@ export function createServer(defaultDir: string): McpServer {
           locales,
           targets,
           onImage: async (img) => {
-            const file = join(folder.dir, "store", outputPath(p, img, layout));
+            const file = join(folder.outputDir(p), outputPath(p, img, layout));
             await mkdir(dirname(file), { recursive: true });
             await writeFile(file, img.bytes);
-            files.push(`${file.slice(folder.dir.length + 1)} ${img.width}×${img.height}`);
+            files.push(`${folder.isLive ? file : file.slice(folder.dir.length + 1)} ${img.width}×${img.height}`);
           },
         });
         const text = [

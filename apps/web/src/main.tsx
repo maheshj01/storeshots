@@ -7,6 +7,10 @@ import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "./styles.css";
 import { App } from "./App.tsx";
+import { resumeBridge } from "./engine/bridge.ts";
+
+// Reconnect to the local MCP server if this browser linked to it before.
+resumeBridge();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -18,6 +22,7 @@ createRoot(document.getElementById("root")!).render(
 if (import.meta.env.DEV) {
   void Promise.all([import("./state/store.ts"), import("./engine/folderSync.ts")]).then(([store, sync]) => {
     (window as unknown as Record<string, unknown>).__storeshots = { useEditor: store.useEditor, useSyncStatus: sync.useSyncStatus };
+    void import("./engine/bridge.ts").then((b) => Object.assign((window as unknown as Record<string, Record<string, unknown>>).__storeshots!, { useBridge: b.useBridge, connectBridge: b.connectBridge }));
   });
 }
 

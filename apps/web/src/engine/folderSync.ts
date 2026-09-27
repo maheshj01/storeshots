@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { parseProject, serializeProject, type Project } from "@storeshots/schema";
 import { useEditor } from "../state/store.ts";
+import { applyExternalProject } from "../state/external.ts";
 import { saveAssets, saveDoc } from "../state/persist.ts";
 import { ensureWritable, readFolderFiles, writeFolderFile } from "../state/io.ts";
 
@@ -51,17 +52,8 @@ async function readText(handle: FileSystemDirectoryHandle): Promise<string | nul
   }
 }
 
-/** Applies a project read from disk as one undoable edit. */
 function applyExternal(next: Project) {
-  const { edit, select, selection } = useEditor.getState();
-  edit("Changes from the folder", (d) => {
-    for (const key of Object.keys(next) as Array<keyof Project>) (d as Record<string, unknown>)[key] = next[key];
-  });
-  // Keep the selection pointing at something that still exists.
-  const doc = useEditor.getState().doc!;
-  const screen = doc.screens.find((s) => s.id === selection.screen) ?? doc.screens[0];
-  const layer = screen && selection.layer !== null && selection.layer < screen.layers.length ? selection.layer : null;
-  select({ screen: screen?.id ?? null, layer });
+  applyExternalProject(next, "Changes from the folder");
   useSyncStatus.setState({ lastExternal: Date.now() });
 }
 

@@ -95,7 +95,7 @@ export function Home() {
             <h2 id="ai-card-title">Works with Claude and other AI agents</h2>
             <p>
               An MCP server lets Claude Code, Claude Desktop, Cursor and other agents check and edit your screenshots. They read each
-              screen as text, not images, and their changes show up here as they work.
+              screen as text, not images, and you watch their changes appear here as they work. It runs on your computer.
             </p>
             <code className="ai-cmd">npx {PACKAGE}</code>
           </div>

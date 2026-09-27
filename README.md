@@ -40,7 +40,7 @@ pnpm install
 pnpm check                  # typecheck and tests
 pnpm dev                    # the editor on http://localhost:5180
 pnpm render:example         # renders examples/epoch to examples/epoch/store/
-pnpm mcp --project <dir>    # MCP server over stdio, see apps/mcp/README.md
+pnpm mcp                    # MCP server for AI agents; the editor connects via AI → Connect (apps/mcp/README.md)
 pnpm parity                 # opens the browser-versus-Node comparison on :5173
 ```
 

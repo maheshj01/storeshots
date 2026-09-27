@@ -15,7 +15,7 @@ await build({
   platform: "node",
   format: "esm",
   target: "node20",
-  external: ["@napi-rs/canvas", "@modelcontextprotocol/sdk", "zod"],
+  external: ["@napi-rs/canvas", "@modelcontextprotocol/sdk", "zod", "ws"],
   banner: { js: "#!/usr/bin/env node" },
   legalComments: "none",
   logLevel: "warning",

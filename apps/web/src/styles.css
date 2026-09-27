@@ -293,6 +293,15 @@ input[type="range"] { accent-color: var(--proof); width: 100%; }
 .code .btn:hover { background: #ffffff1a; }
 .prompts { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 .prompts li { font-size: 12px; color: var(--ink-2); background: var(--panel-2); border-radius: var(--radius); padding: 7px 10px; }
+.live { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); background: var(--panel-2); border-radius: var(--radius); padding: 8px 10px; }
+.live.ok { background: #1e8e5a14; color: var(--ink); }
+.live .btn { margin-left: auto; height: 26px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+.dot.waiting { background: var(--warn); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.3; } }
+.btn.ai-on { border-color: #1e8e5a66; color: var(--ok); background: #1e8e5a0f; }
+.alt { border-top: 1px solid var(--rule); padding-top: 14px; display: grid; gap: 10px; }
+.alt summary { cursor: pointer; font-weight: 500; font-size: 13px; }
 .ai-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 20px 22px; margin: -16px 0 48px; max-width: 760px; background: var(--panel); border: 1px solid var(--rule); border-left: 3px solid var(--proof); border-radius: var(--radius); }
 .ai-card h2 { margin: 0 0 6px; font: 600 15px var(--sans); letter-spacing: -0.01em; text-transform: none; color: var(--ink); }
 .ai-card p { margin: 0 0 10px; font-size: 13px; color: var(--ink-2); max-width: 60ch; }

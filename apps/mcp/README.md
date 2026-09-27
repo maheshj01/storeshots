@@ -14,14 +14,12 @@ as the CLI, so what an agent changes is what people see and what exports.
 
 ## Set up
 
-Needs Node.js 20 or later. Point it at the folder that holds your
-`storeshots.json` (in the web editor, **Link a folder** creates one and keeps
-it in sync, so you see the agent's changes as it works).
+Needs Node.js 20 or later.
 
-Claude Code, from your app's repository:
+Claude Code:
 
 ```
-claude mcp add storeshots -- npx -y storeshots-mcp-server --project ./store-assets
+claude mcp add storeshots -- npx -y storeshots-mcp-server
 ```
 
 Claude Desktop (Settings → Developer → Edit Config), Cursor
@@ -30,16 +28,26 @@ Claude Desktop (Settings → Developer → Edit Config), Cursor
 ```json
 {
   "mcpServers": {
-    "storeshots": {
-      "command": "npx",
-      "args": ["-y", "storeshots-mcp-server", "--project", "/path/to/app/store-assets"]
-    }
+    "storeshots": { "command": "npx", "args": ["-y", "storeshots-mcp-server"] }
   }
 }
 ```
 
-`--project` defaults to the working folder. Every tool also takes
-`project_dir`, so one server can work on several projects.
+Then pick what the agent works on:
+
+- **The project open in the web editor (live).** In the editor, click
+  **AI → Connect this tab**. The tab links to the server on
+  `127.0.0.1:47821`; the agent's edits appear on screen as it makes them,
+  each one undoable, and your edits are visible to the agent straight away.
+  Nothing leaves your computer. Renders go to `./storeshots-export/<project>/`.
+- **A folder with a `storeshots.json`**, e.g. in your app's repo: start the
+  server with `--project ./store-assets` (or from inside that folder), or
+  pass `project_dir` to any tool. In the web editor, **Link a folder** keeps
+  the same folder in sync both ways.
+
+Without `--project`, the server uses a `storeshots.json` in the folder it
+starts in, and otherwise the live project. `project_dir: "live"` always
+means the live project.
 
 ### From this repository
 
@@ -94,10 +102,23 @@ findings:
   can't point outside it. `storeshots_import_capture` reads the source
   file you name and copies it in.
 
+## Live link security
+
+- The link listens on 127.0.0.1 only and accepts pages from
+  `https://storeshots-mcp.vercel.app` and localhost; add others with
+  `STORESHOTS_ALLOWED_ORIGINS` (comma-separated).
+- The newest connected editor tab is the one the agent works on.
+- The server exits when its AI tool closes the session, freeing the port.
+  `--port` or `STORESHOTS_PORT` changes it (the editor expects 47821);
+  `--no-live` turns the link off.
+
 ## Known limits
 
-- The web editor keeps projects in the browser. A project opened from a
-  folder doesn't see an agent's edits until it's reopened.
+- One server at a time can hold the live link's port. A second one (say,
+  Claude Code and Claude Desktop both running) still works on folders and
+  says why the live link is unavailable.
+- Browsers may ask once before the editor site can talk to a server on
+  your computer. Safari may not allow it; use a linked folder there.
 - Contrast is checked against solid colours, gradients and shapes; text
   over a screenshot or image isn't checked.
 - Tool definitions are about 22 KB, a one-time cost per session.
