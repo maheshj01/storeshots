@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { loadImage, createCanvas } from "@napi-rs/canvas";
 import { parseProject } from "@storeshots/schema";
 import { AssetCache, encodeCanvas, exportProject, readPngHeader, renderScreen } from "@storeshots/core";
-import { nodeHost, readProjectFile } from "./node-host.ts";
+import { nodeHost, readProjectFile } from "@storeshots/node";
 
 /**
  * Golden images for the epoch fixture, rendered at half size to keep the
@@ -63,7 +63,8 @@ describe("epoch goldens", async () => {
   });
 });
 
-describe("export", () => {
+// Full-size renders of every screen and locale: allow for slow CI machines.
+describe("export", { timeout: 30_000 }, () => {
   it("writes store-valid, alpha-free PNGs for every locale", async () => {
     const parsed = parseProject(await readProjectFile(fixture));
     if (!parsed.ok) throw new Error("fixture invalid");

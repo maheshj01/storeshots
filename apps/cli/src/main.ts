@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 import { parseProject, type Project } from "@storeshots/schema";
 import { exportProject, outputPath } from "@storeshots/core";
 import { CATALOG, skinToFrame } from "@storeshots/frames";
-import { nodeHost, readProjectFile } from "./node-host.ts";
+import { nodeHost, readProjectFile } from "@storeshots/node";
 
 const USAGE = `storeshots <command> [options]
 

@@ -29,6 +29,9 @@ importers:
       '@storeshots/frames':
         specifier: workspace:*
         version: link:../../packages/frames
+      '@storeshots/node':
+        specifier: workspace:*
+        version: link:../../packages/node
       '@storeshots/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -115,6 +118,19 @@ importers:
       '@storeshots/schema':
         specifier: workspace:*
         version: link:../schema
+
+  packages/node:
+    dependencies:
+      '@napi-rs/canvas':
+        specifier: ^0.1.80
+        version: 0.1.100
+      '@storeshots/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.2
 
   packages/ops:
     dependencies:

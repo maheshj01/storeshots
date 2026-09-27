@@ -7,11 +7,12 @@
     "storeshots": "./src/main.ts"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.80",
     "@storeshots/core": "workspace:*",
-    "@storeshots/schema": "workspace:*",
-    "@storeshots/stores": "workspace:*",
     "@storeshots/frames": "workspace:*",
-    "@napi-rs/canvas": "^0.1.80"
+    "@storeshots/node": "workspace:*",
+    "@storeshots/schema": "workspace:*",
+    "@storeshots/stores": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.2"
