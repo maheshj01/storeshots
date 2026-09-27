@@ -16,6 +16,84 @@ export function deviceLabel(t: Target): string {
   return `${t.store === "play" ? "Play" : "App Store"} ${cls?.label.toLowerCase() ?? t.device ?? ""}`.trim();
 }
 
+function typing(target: EventTarget | null): boolean {
+  const t = target as HTMLElement | null;
+  return !!t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
+}
+
+/**
+ * Hold Space and drag to pan the table, like design tools. Space is only
+ * taken while the pointer is over the table, so it still presses focused
+ * buttons elsewhere and types normally in fields.
+ */
+function useSpacePan(scroller: React.RefObject<HTMLDivElement | null>) {
+  const [ready, setReady] = useState(false);
+  const [panning, setPanning] = useState(false);
+  const hovering = useRef(false);
+  const held = useRef(false);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || typing(e.target) || !(hovering.current || held.current)) return;
+      e.preventDefault(); // no page scroll, no button press
+      if (!held.current) {
+        held.current = true;
+        setReady(true);
+      }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || !held.current) return;
+      e.preventDefault();
+      held.current = false;
+      setReady(false);
+    };
+    const reset = () => {
+      held.current = false;
+      setReady(false);
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", reset);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", reset);
+    };
+  }, []);
+
+  const onPointerDownCapture = (e: React.PointerEvent) => {
+    const el = scroller.current;
+    if (!held.current || e.button !== 0 || !el) return;
+    // Capture phase: the overlay never sees this press, so nothing is selected or moved.
+    e.preventDefault();
+    e.stopPropagation();
+    const start = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+    setPanning(true);
+    const move = (ev: PointerEvent) => {
+      el.scrollLeft = start.left - (ev.clientX - start.x);
+      el.scrollTop = start.top - (ev.clientY - start.y);
+    };
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      setPanning(false);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  };
+
+  return {
+    className: panning ? " panning" : ready ? " pan-ready" : "",
+    handlers: {
+      onPointerDownCapture,
+      onPointerEnter: () => void (hovering.current = true),
+      onPointerLeave: () => void (hovering.current = false),
+    },
+  };
+}
+
 function imageFiles(e: React.DragEvent): File[] {
   return [...e.dataTransfer.files].filter((f) => /^image\/(png|jpeg|webp)$/.test(f.type));
 }
@@ -26,6 +104,7 @@ export function Table() {
   const target = useTarget()!;
   const [dropping, setDropping] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const pan = useSpacePan(scroller);
 
   const h = Math.round(BASE_HEIGHT * zoom);
   const w = Math.round((h * target.size[0]) / target.size[1]);
@@ -63,7 +142,8 @@ export function Table() {
   return (
     <div
       ref={scroller}
-      className={`table${dropping ? " dropping" : ""}`}
+      className={`table${dropping ? " dropping" : ""}${pan.className}`}
+      {...pan.handlers}
       onPointerDown={(e) => {
         if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains("strip")) {
           useEditor.getState().select({ layer: null });
@@ -122,7 +202,7 @@ export function Table() {
         <button type="button" className="btn ghost" style={{ height: 24 }} onClick={fit} title="Fit screens to the window height">
           Fit
         </button>
-        <label className="row" title="Zoom (Ctrl or ⌘ + scroll)">
+        <label className="row" title="Zoom (Ctrl or ⌘ + scroll). Hold Space and drag to pan.">
           <span>{Math.round(zoom * 100)}%</span>
           <input type="range" min={0.25} max={2} step={0.05} value={zoom} onChange={(e) => useEditor.getState().setZoom(+e.target.value)} aria-label="Zoom" />
         </label>
