@@ -13,6 +13,7 @@
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@storeshots/core": "workspace:*",
     "@storeshots/frames": "workspace:*",
+    "@storeshots/ops": "workspace:*",
     "@storeshots/schema": "workspace:*",
     "@storeshots/stores": "workspace:*",
     "fflate": "^0.8.3",

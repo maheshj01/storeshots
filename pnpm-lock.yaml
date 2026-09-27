@@ -54,6 +54,9 @@ importers:
       '@storeshots/frames':
         specifier: workspace:*
         version: link:../../packages/frames
+      '@storeshots/ops':
+        specifier: workspace:*
+        version: link:../../packages/ops
       '@storeshots/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -112,6 +115,22 @@ importers:
       '@storeshots/schema':
         specifier: workspace:*
         version: link:../schema
+
+  packages/ops:
+    dependencies:
+      '@storeshots/core':
+        specifier: workspace:*
+        version: link:../core
+      '@storeshots/frames':
+        specifier: workspace:*
+        version: link:../frames
+      '@storeshots/schema':
+        specifier: workspace:*
+        version: link:../schema
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.2
 
   packages/schema:
     dependencies:

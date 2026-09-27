@@ -6,7 +6,7 @@ import { useEditor, useSelectedScreen, useTarget } from "../state/store.ts";
 import {
   addFont, applyLayoutToAll, captureList, deleteLayer, duplicateLayer, ensureFonts, layerText, moveLayer, setCapture, setLayerText, switchTemplate, updateLayer,
 } from "../state/actions.ts";
-import { BUNDLED_FONTS, TEMPLATES } from "../state/templates.ts";
+import { BUNDLED_FONTS, TEMPLATES } from "@storeshots/ops";
 import { decodeImage } from "../engine/host.ts";
 import { ColorField, NumberField, Section, Segmented, Toggle } from "./fields.tsx";
 

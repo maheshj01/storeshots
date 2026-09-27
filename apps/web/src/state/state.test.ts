@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { parseProject, serializeProject } from "@storeshots/schema";
 import { useEditor } from "./store.ts";
-import { applyTemplate, mix, newProject, TEMPLATES } from "./templates.ts";
+import { applyTemplate, mix, newProject, TEMPLATES } from "@storeshots/ops";
 
 const S = () => useEditor.getState();
 

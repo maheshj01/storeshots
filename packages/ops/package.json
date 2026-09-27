@@ -1,0 +1,18 @@
+{
+  "name": "@storeshots/ops",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fonts-dir": "./src/fonts-dir.ts"
+  },
+  "dependencies": {
+    "@storeshots/core": "workspace:*",
+    "@storeshots/frames": "workspace:*",
+    "@storeshots/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2"
+  }
+}

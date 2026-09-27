@@ -198,12 +198,3 @@ export function useSelectedScreen() {
 export function useTarget() {
   return useEditor((s) => s.doc?.targets.find((t) => t.id === s.target) ?? s.doc?.targets[0] ?? null);
 }
-
-/** A screen id not yet used in the project. */
-export function freshScreenId(doc: Project, base = "screen"): string {
-  const ids = new Set(doc.screens.map((s) => s.id));
-  for (let n = doc.screens.length + 1; ; n++) {
-    const id = `${base}-${n}`;
-    if (!ids.has(id)) return id;
-  }
-}

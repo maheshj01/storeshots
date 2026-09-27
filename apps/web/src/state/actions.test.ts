@@ -5,7 +5,7 @@ vi.mock("./persist.ts", () => ({ saveAssets: async () => {} }));
 
 const { useEditor } = await import("./store.ts");
 const A = await import("./actions.ts");
-const { newProject } = await import("./templates.ts");
+const { newProject } = await import("@storeshots/ops");
 
 const S = () => useEditor.getState();
 const valid = () => {

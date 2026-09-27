@@ -1,13 +1,23 @@
-import type { DeviceLayer, Layer, Project, TextLayer } from "@storeshots/schema";
-import { captionKey } from "@storeshots/schema";
-import { CATALOG, findFrame } from "@storeshots/frames";
-import { frameAspect } from "@storeshots/core";
-import { freshScreenId, useEditor } from "./store.ts";
+import type { Layer, Project } from "@storeshots/schema";
+import * as ops from "@storeshots/ops";
+import { useEditor } from "./store.ts";
 import { saveAssets } from "./persist.ts";
-import { applyTemplate, DEFAULT_FRAME, fetchBundledFonts } from "./templates.ts";
+import { fetchBundledFonts } from "./fonts.ts";
 import { decodeImage } from "../engine/host.ts";
 
+/**
+ * Editor actions: each runs a shared edit operation from @storeshots/ops as
+ * one undoable step, then updates the selection. The same operations back
+ * the MCP server, so agents and people edit projects identically.
+ */
+
 const S = () => useEditor.getState();
+const target = () => {
+  const doc = S().doc!;
+  return doc.targets.find((t) => t.id === S().target) ?? doc.targets[0]!;
+};
+
+export const layerText = ops.layerText;
 
 /** Adds files to the project and persists them. */
 export async function addProjectAssets(files: Array<[string, Blob]>) {
@@ -24,109 +34,42 @@ export async function ensureFonts(files: string[]) {
 
 // Screens ----------------------------------------------------------------
 
-export function addScreen(afterId?: string) {
-  const doc = S().doc;
-  if (!doc) return;
-  const id = freshScreenId(doc);
-  const from = doc.screens.find((s) => s.id === afterId) ?? doc.screens[doc.screens.length - 1];
-  S().edit("Add screen", (d) => {
-    const at = from ? d.screens.findIndex((s) => s.id === from.id) + 1 : d.screens.length;
-    // A new screen copies the layout of its neighbour with fresh captions
-    // and no capture, so a set stays consistent by default.
-    const layers: Layer[] = structuredClone(from?.layers ?? []).map((l: Layer, i: number) => {
-      if (l.type === "device") return { ...l, capture: "" };
-      if (l.type === "text") {
-        const key = `${id}.${i === 0 ? "title" : `text-${i}`}`;
-        d.captions[key] = { [d.locales.default]: i === 0 ? "Say what this screen does" : "One short line of detail" };
-        return { ...l, text: `@caption.${key}` };
-      }
-      return l;
-    });
-    d.screens.splice(at, 0, { id, background: structuredClone(from?.background ?? { type: "solid", color: "#FFFFFF" }), layers });
-  });
+export function addScreen(afterId?: string): string | undefined {
+  if (!S().doc) return;
+  let id = "";
+  S().edit("Add screen", (d) => void (id = ops.addScreen(d as Project, afterId)));
   S().select({ screen: id, layer: null });
   return id;
 }
 
 export function duplicateScreen(id: string) {
-  const doc = S().doc;
-  const src = doc?.screens.find((s) => s.id === id);
-  if (!doc || !src) return;
-  const nid = freshScreenId(doc);
-  S().edit("Duplicate screen", (d) => {
-    const layers = structuredClone(src.layers).map((l: Layer) => {
-      if (l.type !== "text") return l;
-      const key = captionKey(l.text);
-      if (!key) return l;
-      const nkey = key.startsWith(`${id}.`) ? `${nid}.${key.slice(id.length + 1)}` : `${nid}.${key}`;
-      d.captions[nkey] = { ...doc.captions[key] };
-      return { ...l, text: `@caption.${nkey}` };
-    });
-    const at = d.screens.findIndex((s) => s.id === id) + 1;
-    d.screens.splice(at, 0, { id: nid, background: structuredClone(src.background), layers });
-  });
-  S().select({ screen: nid, layer: null });
+  let nid = "";
+  S().edit("Duplicate screen", (d) => void (nid = ops.duplicateScreen(d as Project, id)));
+  if (nid) S().select({ screen: nid, layer: null });
 }
 
 export function deleteScreen(id: string) {
   const doc = S().doc;
   if (!doc || doc.screens.length <= 1) return;
   const index = doc.screens.findIndex((s) => s.id === id);
-  S().edit("Delete screen", (d) => {
-    const [removed] = d.screens.splice(index, 1);
-    // Drop captions only this screen used.
-    const used = new Set(d.screens.flatMap((s) => s.layers.flatMap((l) => (l.type === "text" ? [captionKey(l.text)] : []))));
-    for (const l of removed?.layers ?? []) {
-      const key = l.type === "text" ? captionKey(l.text) : null;
-      if (key && !used.has(key)) delete d.captions[key];
-    }
-  });
+  S().edit("Delete screen", (d) => ops.deleteScreen(d as Project, id));
   const next = S().doc!.screens[Math.min(index, S().doc!.screens.length - 1)]!;
   S().select({ screen: next.id, layer: null });
 }
 
 export function moveScreen(id: string, to: number) {
-  S().edit("Reorder screens", (d) => {
-    const from = d.screens.findIndex((s) => s.id === id);
-    if (from < 0 || to < 0 || to >= d.screens.length || from === to) return;
-    const [s] = d.screens.splice(from, 1);
-    d.screens.splice(to, 0, s!);
-  });
+  const doc = S().doc;
+  if (!doc || to < 0 || to >= doc.screens.length) return;
+  S().edit("Reorder screens", (d) => ops.moveScreen(d as Project, id, to));
 }
 
-/** Copies the selected screen's layout onto every other screen, keeping their content. */
 export function applyLayoutToAll(id: string) {
-  const doc = S().doc;
-  const src = doc?.screens.find((s) => s.id === id);
-  if (!doc || !src) return;
-  S().edit("Apply layout to all screens", (d) => {
-    for (const screen of d.screens) {
-      if (screen.id === id) continue;
-      const texts = screen.layers.filter((l): l is TextLayer => l.type === "text");
-      const devices = screen.layers.filter((l): l is DeviceLayer => l.type === "device");
-      let ti = 0;
-      let di = 0;
-      screen.background = structuredClone(src.background);
-      screen.layers = structuredClone(src.layers).map((l: Layer) => {
-        if (l.type === "text") {
-          const mine = texts[ti++];
-          return mine ? { ...l, text: mine.text } : l;
-        }
-        if (l.type === "device") {
-          const mine = devices[di++];
-          return { ...l, capture: mine?.capture ?? "" };
-        }
-        return l;
-      });
-    }
-  });
+  S().edit("Apply layout to all screens", (d) => ops.applyLayoutToAll(d as Project, id));
 }
 
 export async function switchTemplate(templateId: string) {
   let fonts: string[] = [];
-  S().edit("Change template", (d) => {
-    fonts = applyTemplate(d as Project, templateId);
-  });
+  S().edit("Change template", (d) => void (fonts = ops.applyTemplate(d as Project, templateId)));
   await ensureFonts(fonts);
 }
 
@@ -135,13 +78,13 @@ export async function switchTemplate(templateId: string) {
 function selected() {
   const { doc, selection } = S();
   const screen = doc?.screens.find((s) => s.id === selection.screen);
-  return { doc, screen, layer: screen && selection.layer !== null ? screen.layers[selection.layer] : undefined, index: selection.layer };
+  return { doc, screen, index: selection.layer };
 }
 
-export function updateLayer(label: string, recipe: (l: Layer) => void, target?: { screen: string; layer: number }) {
+export function updateLayer(label: string, recipe: (l: Layer) => void, at?: { screen: string; layer: number }) {
   const { selection } = S();
-  const screenId = target?.screen ?? selection.screen;
-  const index = target?.layer ?? selection.layer;
+  const screenId = at?.screen ?? selection.screen;
+  const index = at?.layer ?? selection.layer;
   if (!screenId || index === null) return;
   S().edit(
     label,
@@ -156,34 +99,11 @@ export function updateLayer(label: string, recipe: (l: Layer) => void, target?: 
 export function addLayer(type: Layer["type"]) {
   const { doc, screen } = selected();
   if (!doc || !screen) return;
-  const target = doc.targets.find((t) => t.id === S().target) ?? doc.targets[0]!;
-  const aspect = target.size[0] / target.size[1];
-  let layer: Layer;
-  let caption: string | null = null;
-  if (type === "text") {
-    const key = `${screen.id}.text-${Date.now().toString(36)}`;
-    caption = key;
-    const font = doc.theme.fonts.body ? "$body" : doc.theme.fonts.heading ? "$heading" : "fonts/Poppins-Regular.ttf";
-    layer = {
-      type: "text", text: `@caption.${key}`, font, size: 0.05, color: "#111111", box: { x: 0.1, y: 0.4, w: 0.8, h: 0.08 },
-      rotate: 0, opacity: 1, lineHeight: 1.15, align: "center", valign: "middle", fit: "shrink", balance: true,
-    };
-    if (font.startsWith("fonts/")) void ensureFonts(["Poppins-Regular.ttf"]);
-  } else if (type === "device") {
-    const frame = findFrame(DEFAULT_FRAME)!;
-    const w = 0.6;
-    const h = (w * aspect) / frameAspect(frame);
-    layer = { type: "device", frame: DEFAULT_FRAME, capture: "", box: { x: 0.2, y: Math.max(0.02, (1 - h) / 2), w, h }, rotate: 0, opacity: 1, shadow: true };
-  } else if (type === "shape") {
-    layer = { type: "shape", shape: "rect", color: "#FFFFFF", radius: 0.03, box: { x: 0.2, y: 0.4, w: 0.6, h: 0.2 }, rotate: 0, opacity: 1 };
-  } else {
-    return;
-  }
-  S().edit(`Add ${type}`, (d) => {
-    if (caption) d.captions[caption] = { [d.locales.default]: "New caption" };
-    d.screens.find((s) => s.id === screen.id)!.layers.push(layer);
-  });
-  S().select({ layer: S().doc!.screens.find((s) => s.id === screen.id)!.layers.length - 1 });
+  let index = 0;
+  S().edit(`Add ${type}`, (d) => void (index = ops.addLayer(d as Project, screen.id, type, target())));
+  const layer = S().doc!.screens.find((s) => s.id === screen.id)!.layers[index]!;
+  if (layer.type === "text" && layer.font.startsWith("fonts/")) void ensureFonts([layer.font.slice(6)]);
+  S().select({ layer: index });
 }
 
 export async function addImageLayer(file: File) {
@@ -192,44 +112,29 @@ export async function addImageLayer(file: File) {
   const path = uniquePath(`images/${safeName(file.name)}`);
   await addProjectAssets([[path, file]]);
   const bmp = await decodeImage(file);
-  const doc = S().doc!;
-  const t = doc.targets.find((x) => x.id === S().target) ?? doc.targets[0]!;
+  const t = target();
   const w = 0.5;
   const h = (w * t.size[0] * (bmp.height / bmp.width)) / t.size[1];
+  let index = 0;
   S().edit("Add image", (d) => {
-    d.screens.find((s) => s.id === screen.id)!.layers.push({
-      type: "image", src: path, fit: "contain", radius: 0, box: { x: 0.25, y: Math.max(0, (1 - h) / 2), w, h }, rotate: 0, opacity: 1,
-    });
+    index = ops.addLayer(d as Project, screen.id, "image", t, { src: path, box: { x: 0.25, y: Math.max(0, (1 - h) / 2), w, h } } as Partial<Layer>);
   });
-  S().select({ layer: S().doc!.screens.find((s) => s.id === screen.id)!.layers.length - 1 });
+  S().select({ layer: index });
 }
 
 export function deleteLayer() {
   const { screen, index } = selected();
   if (!screen || index === null) return;
-  S().edit("Delete layer", (d) => {
-    d.screens.find((s) => s.id === screen.id)!.layers.splice(index, 1);
-  });
+  S().edit("Delete layer", (d) => ops.deleteLayer(d as Project, screen.id, index));
   S().select({ layer: null });
 }
 
 export function duplicateLayer() {
-  const { doc, screen, layer, index } = selected();
-  if (!doc || !screen || !layer || index === null) return;
-  S().edit("Duplicate layer", (d) => {
-    const copy = structuredClone(layer) as Layer;
-    copy.box = { ...copy.box, x: copy.box.x + 0.03, y: copy.box.y + 0.02 };
-    if (copy.type === "text") {
-      const key = captionKey(copy.text);
-      if (key) {
-        const nkey = `${key}-copy-${Date.now().toString(36)}`;
-        d.captions[nkey] = { ...doc.captions[key] };
-        copy.text = `@caption.${nkey}`;
-      }
-    }
-    d.screens.find((s) => s.id === screen.id)!.layers.splice(index + 1, 0, copy);
-  });
-  S().select({ layer: index + 1 });
+  const { screen, index } = selected();
+  if (!screen || index === null) return;
+  let next = index;
+  S().edit("Duplicate layer", (d) => void (next = ops.duplicateLayer(d as Project, screen.id, index)));
+  S().select({ layer: next });
 }
 
 export function moveLayer(delta: number) {
@@ -237,35 +142,13 @@ export function moveLayer(delta: number) {
   if (!screen || index === null) return;
   const to = index + delta;
   if (to < 0 || to >= screen.layers.length) return;
-  S().edit(delta > 0 ? "Bring forward" : "Send backward", (d) => {
-    const layers = d.screens.find((s) => s.id === screen.id)!.layers;
-    const [l] = layers.splice(index, 1);
-    layers.splice(to, 0, l!);
-  });
+  S().edit(delta > 0 ? "Bring forward" : "Send backward", (d) => ops.moveLayer(d as Project, screen.id, index, to));
   S().select({ layer: to });
 }
 
-/** The text a layer shows in the current locale. */
-export function layerText(doc: Project, l: TextLayer, locale: string): string {
-  const key = captionKey(l.text);
-  if (!key) return l.text;
-  const entry = doc.captions[key];
-  return entry?.[locale] ?? entry?.[doc.locales.default] ?? "";
-}
-
 export function setLayerText(screenId: string, index: number, value: string) {
-  const { doc, locale } = S();
-  const l = doc?.screens.find((s) => s.id === screenId)?.layers[index];
-  if (!doc || !l || l.type !== "text") return;
-  const key = captionKey(l.text);
-  S().edit("Edit text", (d) => {
-    if (key) {
-      d.captions[key] ??= {};
-      d.captions[key]![locale] = value;
-    } else {
-      (d.screens.find((s) => s.id === screenId)!.layers[index] as TextLayer).text = value;
-    }
-  }, `text:${screenId}:${index}:${locale}`);
+  const { locale } = S();
+  S().edit("Edit text", (d) => ops.setLayerText(d as Project, screenId, index, locale, value), `text:${screenId}:${index}:${locale}`);
 }
 
 // Captures ---------------------------------------------------------------
@@ -287,26 +170,6 @@ function uniquePath(path: string): string {
   }
 }
 
-/**
- * Picks the catalog frame for a capture: one whose display is exactly the
- * capture's resolution wins; otherwise keep the current frame if its shape
- * fits, else take the first frame of the right shape.
- */
-function frameFor(current: string, width: number, height: number): string {
-  const cur = findFrame(current);
-  if (!cur) return current; // an imported skin: the person chose it
-  const exact = (id: string) => {
-    const f = findFrame(id);
-    return !!f && f.display[0] === width && f.display[1] === height;
-  };
-  if (exact(current)) return current;
-  const match = CATALOG.find((f) => exact(f.id));
-  if (match) return match.id;
-  const fits = (f: { display: [number, number] }) => Math.abs(f.display[0] / f.display[1] - width / height) < 0.01;
-  if (fits(cur)) return current;
-  return CATALOG.find(fits)?.id ?? current;
-}
-
 /** Stores captures under captures/<default locale>/ and returns their file names. */
 export async function storeCaptures(files: File[]): Promise<Array<{ name: string; width: number; height: number }>> {
   const doc = S().doc;
@@ -325,25 +188,8 @@ export async function storeCaptures(files: File[]): Promise<Array<{ name: string
 }
 
 export function setCapture(screenId: string, layerIndex: number, capture: { name: string; width: number; height: number }) {
-  S().edit("Set screenshot", (d) => {
-    const l = d.screens.find((s) => s.id === screenId)?.layers[layerIndex];
-    if (l?.type !== "device") return;
-    l.capture = capture.name;
-    if (typeof l.frame === "string") {
-      const next = frameFor(l.frame, capture.width, capture.height);
-      if (next !== l.frame) {
-        const doc = S().doc!;
-        const t = doc.targets.find((x) => x.id === S().target) ?? doc.targets[0]!;
-        const cx = l.box.x + l.box.w / 2;
-        const bottom = l.box.y + l.box.h;
-        l.frame = next;
-        l.variant = undefined;
-        l.box.h = (l.box.w * t.size[0]) / t.size[1] / frameAspect(findFrame(next)!);
-        l.box.x = cx - l.box.w / 2;
-        l.box.y = bottom - l.box.h;
-      }
-    }
-  });
+  const t = target();
+  S().edit("Set screenshot", (d) => ops.setCapture(d as Project, screenId, layerIndex, capture, t));
 }
 
 /**

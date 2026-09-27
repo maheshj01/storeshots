@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { TEMPLATES, fetchBundledFonts, newProject } from "../state/templates.ts";
+import { TEMPLATES, newProject } from "@storeshots/ops";
+import { fetchBundledFonts } from "../state/fonts.ts";
 import { renderStandalone } from "../engine/preview.ts";
 import { newProjectId, saveAssets, saveDoc } from "../state/persist.ts";
 import { useEditor } from "../state/store.ts";
