@@ -4,7 +4,8 @@ A tool for making App Store and Google Play screenshots: upload raw captures,
 put them in real device frames, compose them on store-sized canvases with
 backgrounds and text, and export exactly what each store accepts.
 
-Status: phase 0 (foundations) and phase 1 (the web editor) are built. See
+Status: phase 0 (foundations) and phase 1 (the web editor) are built, plus
+an MCP server so AI agents can edit designs. See
 [Getting started](#getting-started).
 
 ## The bet in one paragraph
@@ -19,16 +20,16 @@ than an engine bolted onto an editor.
 
 ## Documents
 
-| Doc | What it answers |
-|---|---|
-| [01 Vision and market](docs/01-vision-and-market.md) | Who it's for, what competitors do, where we win, what we won't do |
-| [ADR 0001 Platform](docs/decisions/0001-platform.md) | Web app, desktop app, CLI, or all three, and in what order |
-| [ADR 0002 Render parity](docs/decisions/0002-render-parity.md) | Phase 0 spike result: Skia in Node versus the browser |
-| [02 Architecture](docs/02-architecture.md) | Monorepo layout, rendering engine, editor, CLI, frames catalog |
-| [03 Project format](docs/03-project-format.md) | The `storeshots.json` schema that everything reads and writes |
-| [04 Store specs](docs/04-store-specs.md) | Verified Play Store and App Store size rules the exporter enforces |
-| [05 Roadmap](docs/05-roadmap.md) | Phases, scope and exit criteria |
-| [06 Risks and open questions](docs/06-risks-and-open-questions.md) | What could sink it and what still needs a decision |
+| Doc                                                                | What it answers                                                    |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| [01 Vision and market](docs/01-vision-and-market.md)               | Who it's for, what competitors do, where we win, what we won't do  |
+| [ADR 0001 Platform](docs/decisions/0001-platform.md)               | Web app, desktop app, CLI, or all three, and in what order         |
+| [ADR 0002 Render parity](docs/decisions/0002-render-parity.md)     | Phase 0 spike result: Skia in Node versus the browser              |
+| [02 Architecture](docs/02-architecture.md)                         | Monorepo layout, rendering engine, editor, CLI, frames catalog     |
+| [03 Project format](docs/03-project-format.md)                     | The `storeshots.json` schema that everything reads and writes      |
+| [04 Store specs](docs/04-store-specs.md)                           | Verified Play Store and App Store size rules the exporter enforces |
+| [05 Roadmap](docs/05-roadmap.md)                                   | Phases, scope and exit criteria                                    |
+| [06 Risks and open questions](docs/06-risks-and-open-questions.md) | What could sink it and what still needs a decision                 |
 
 ## Getting started
 
@@ -39,6 +40,7 @@ pnpm install
 pnpm check                  # typecheck and tests
 pnpm dev                    # the editor on http://localhost:5180
 pnpm render:example         # renders examples/epoch to examples/epoch/store/
+pnpm mcp --project <dir>    # MCP server over stdio, see apps/mcp/README.md
 pnpm parity                 # opens the browser-versus-Node comparison on :5173
 ```
 
@@ -56,17 +58,20 @@ node apps/cli/src/main.ts frames list
 node apps/cli/src/main.ts frames import pixel_10_pro examples/epoch
 ```
 
-| Path | What's there |
-|---|---|
-| `packages/schema` | Project types (zod), validation with paths, reference checks, JSON Schema, migrations |
-| `packages/stores` | Play and App Store rules as data, image and set checks |
-| `packages/frames` | Vector frame catalog (Pixel 9 Pro, Pixel 7, generic Android) and the emulator skin importer |
-| `packages/core` | The renderer, text layout, deterministic shadows, RGB PNG encoder, export pipeline |
-| `apps/cli` | `storeshots` command and the Node render host; golden tests |
-| `apps/web` | The editor: React over the same core, IndexedDB storage, export worker, offline PWA |
-| `tools/parity` | Browser render host and the parity page |
-| `tools/goldens` | Reference images at half size; `UPDATE_GOLDENS=1 pnpm test` regenerates |
-| `examples/epoch` | The dogfood fixture: 4 screens, en and de |
+| Path              | What's there                                                                                              |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| `packages/schema` | Project types (zod), validation with paths, reference checks, JSON Schema, migrations                     |
+| `packages/stores` | Play and App Store rules as data, image and set checks                                                    |
+| `packages/frames` | Vector frame catalog (Pixel 9 Pro, Pixel 7, generic Android) and the emulator skin importer               |
+| `packages/core`   | The renderer, text layout, deterministic shadows, RGB PNG encoder, export pipeline, and screen inspection |
+| `packages/ops`    | Edit operations and starter templates shared by the editor and the MCP server, plus the bundled OFL fonts |
+| `packages/node`   | The Node render host on `@napi-rs/canvas`, shared by the CLI and the MCP server                           |
+| `apps/cli`        | `storeshots` command; golden tests                                                                        |
+| `apps/web`        | The editor: React over the same core, IndexedDB storage, export worker, offline PWA                       |
+| `apps/mcp`        | MCP server: agents inspect, check and edit projects as text, and render only when needed                  |
+| `tools/parity`    | Browser render host and the parity page                                                                   |
+| `tools/goldens`   | Reference images at half size; `UPDATE_GOLDENS=1 pnpm test` regenerates                                   |
+| `examples/epoch`  | The dogfood fixture: 4 screens, en and de                                                                 |
 
 ## Decisions still needed from you
 

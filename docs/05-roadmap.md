@@ -87,7 +87,8 @@ regenerates every screen in every locale, identically to the editor.
 - Optional sync and sharing, team libraries, review links.
 - Direct upload to Play Console and App Store Connect.
 - Video and animated previews.
-- An MCP server or agent skill so coding agents can update screenshots.
+- ~~An MCP server so coding agents can update screenshots.~~ Built early,
+  September 2026, in `apps/mcp`.
 - AI caption drafting, only as a suggestion, never silently.
 
 ## Milestones at a glance

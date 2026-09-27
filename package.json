@@ -13,7 +13,8 @@
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm test",
     "render:example": "node apps/cli/src/main.ts render examples/epoch",
-    "parity": "pnpm render:example && pnpm --filter @storeshots/parity dev"
+    "parity": "pnpm render:example && pnpm --filter @storeshots/parity dev",
+    "mcp": "node apps/mcp/src/main.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
