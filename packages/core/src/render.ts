@@ -108,6 +108,7 @@ export class AssetCache {
         ...bitmap,
         background: { ...bitmap.background, src: `frames/${id}/${bitmap.background.src}` },
         mask: bitmap.mask && { src: `frames/${id}/${bitmap.mask.src}` },
+        screenMask: bitmap.screenMask && { src: `frames/${id}/${bitmap.screenMask.src}` },
       };
     }
     this.loaded.frames.set(id, f);
@@ -463,6 +464,7 @@ async function drawBitmapFrame(env: DrawEnv, f: BitmapFrame, layer: DeviceLayer,
   const back = await env.cache.image(f.background.src);
   if (!back) throw new Error(`frame image not found: ${f.background.src}`);
   const mask = f.mask ? await env.cache.image(f.mask.src) : null;
+  const screenMask = f.screenMask ? await env.cache.image(f.screenMask.src) : null;
   const [fw, fh] = f.size;
   const s = Math.min(box.w / fw, box.h / fh);
   const ox = box.x + (box.w - fw * s) / 2;
@@ -479,11 +481,23 @@ async function drawBitmapFrame(env: DrawEnv, f: BitmapFrame, layer: DeviceLayer,
   drawImage(ctx, back, bx, by, bw, bh);
 
   const scr = { x: ox + f.screen.x * s, y: oy + f.screen.y * s, w: f.screen.w * s, h: f.screen.h * s };
-  ctx.save();
-  roundRect(ctx, scr.x, scr.y, scr.w, scr.h, f.screen.radius * s);
-  ctx.clip();
-  drawFitted(ctx, shot, scr, "cover");
-  ctx.restore();
+  if (screenMask) {
+    // Cut the screenshot to the mask on a scratch canvas, then place it.
+    const w = Math.max(1, Math.ceil(scr.w));
+    const h = Math.max(1, Math.ceil(scr.h));
+    const scratch = env.cache.host.createCanvas(w, h);
+    const sc = scratch.getContext("2d")!;
+    drawFitted(sc, shot, { x: 0, y: 0, w, h }, "cover");
+    sc.globalCompositeOperation = "destination-in";
+    drawImage(sc, screenMask, 0, 0, w, h);
+    drawImage(ctx, scratch, scr.x, scr.y, w, h);
+  } else {
+    ctx.save();
+    roundRect(ctx, scr.x, scr.y, scr.w, scr.h, f.screen.radius * s);
+    ctx.clip();
+    drawFitted(ctx, shot, scr, "cover");
+    ctx.restore();
+  }
   if (mask) drawImage(ctx, mask, scr.x, scr.y, scr.w, scr.h);
 }
 

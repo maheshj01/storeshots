@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-import { mkdir, writeFile, copyFile, readFile, readdir } from "node:fs/promises";
-import { dirname, join, resolve, basename } from "node:path";
-import { homedir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { parseProject, type Project } from "@storeshots/schema";
 import { exportProject, outputPath } from "@storeshots/core";
-import { CATALOG, skinToFrame } from "@storeshots/frames";
-import { nodeHost, readProjectFile } from "@storeshots/node";
+import { CATALOG } from "@storeshots/frames";
+import { importAndroidSkin, importIosFrame, listIosDevices, nodeHost, readProjectFile } from "@storeshots/node";
 
 const USAGE = `storeshots <command> [options]
 
@@ -19,6 +18,9 @@ Commands:
   validate [dir]               Check the project and store rules without writing files
   frames list                  List the built-in device frames
   frames import <skin> [dir]   Import an Android Emulator skin (SDK name or folder) into <dir>/frames/
+  frames import ios:<device> [dir]
+                               Import the Simulator's bezel for an iPhone or iPad, by name
+                               ("ios:iPhone 17 Pro") or screen size ("ios:1206x2622"); needs Xcode
 
 Exit codes: 0 ok, 1 invalid project or store rule violation, 2 usage error.`;
 
@@ -61,39 +63,11 @@ async function render(dir: string, flags: Record<string, string | boolean | unde
   if (summary.errors.length > 0) process.exit(1);
 }
 
-function sdkSkinDirs(): string[] {
-  const roots = [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT];
-  const home = homedir();
-  roots.push(join(home, "Library/Android/sdk"), join(home, "Android/Sdk"), join(home, "AppData/Local/Android/Sdk"));
-  return roots.filter((r): r is string => !!r).map((r) => join(r, "skins"));
-}
-
-async function exists(p: string) {
-  try {
-    await readdir(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function importSkin(spec: string, dir: string) {
-  let skinDir: string | undefined;
-  if (await exists(spec)) skinDir = spec;
-  else for (const d of sdkSkinDirs()) if (await exists(join(d, spec))) skinDir = join(d, spec);
-  if (!skinDir) {
-    console.error(`skin "${spec}" not found (searched ${sdkSkinDirs().join(", ")})`);
-    process.exit(1);
-  }
-  const id = basename(resolve(skinDir));
-  const frame = skinToFrame(id, await readFile(join(skinDir, "layout"), "utf8"));
-  const dest = join(dir, "frames", id);
-  await mkdir(dest, { recursive: true });
-  await copyFile(join(skinDir, frame.background.src), join(dest, frame.background.src));
-  if (frame.mask) await copyFile(join(skinDir, frame.mask.src), join(dest, frame.mask.src));
-  await writeFile(join(dest, "frame.json"), JSON.stringify(frame, null, 2) + "\n");
-  console.log(`imported ${id} to ${dest} (${frame.display.join("×")} display). Use "frame": "${id}" in a device layer.`);
-  console.log("Emulator skins are Google's art from your own SDK; keep them out of anything you redistribute.");
+/** "ios:iPhone 17 Pro" or "ios:1206x2622" imports a Simulator bezel; anything else is an Android skin. */
+async function importFrame(spec: string, dir: string) {
+  const r = spec.startsWith("ios:") ? await importIosFrame(spec.slice(4), dir) : await importAndroidSkin(spec, dir);
+  console.log(`imported ${r.frame.name} to ${r.dir} (${r.frame.display.join("×")} display). Use "frame": "${r.id}" in a device layer.`);
+  console.log(r.notice);
 }
 
 async function main() {
@@ -120,9 +94,14 @@ async function main() {
     case "frames":
       if (rest[0] === "list") {
         for (const f of CATALOG) console.log(`${f.id.padEnd(18)} ${f.name.padEnd(18)} ${f.display.join("×").padEnd(10)} ${Object.keys(f.variants).join(", ")}`);
+        const sims = (await listIosDevices()).filter((d) => d.mask);
+        if (sims.length) {
+          console.log("\nImportable from Xcode's Simulator (storeshots frames import ios:<name or WxH>):");
+          for (const d of sims) console.log(`  ${d.name.padEnd(28)} ${d.screen.join("×")}`);
+        }
         return;
       }
-      if (rest[0] === "import" && rest[1]) return importSkin(rest[1], rest[2] ?? ".");
+      if (rest[0] === "import" && rest[1]) return importFrame(rest[1], rest[2] ?? ".");
       break;
   }
   console.error(USAGE);

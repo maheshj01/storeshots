@@ -56,6 +56,7 @@ node apps/cli/src/main.ts render examples/epoch --fastlane
 node apps/cli/src/main.ts validate examples/epoch
 node apps/cli/src/main.ts frames list
 node apps/cli/src/main.ts frames import pixel_10_pro examples/epoch
+node apps/cli/src/main.ts frames import ios:1206x2622 examples/epoch   # macOS with Xcode
 ```
 
 | Path              | What's there                                                                                                                |

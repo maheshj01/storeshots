@@ -10,6 +10,7 @@ import { checkImage, checkSet } from "@storeshots/stores";
 import { exportProject, inspectScreen, outputPath, renderScreen, type ScreenInspection } from "@storeshots/core";
 import * as ops from "@storeshots/ops";
 import { BUNDLED_FONTS_DIR } from "@storeshots/ops/fonts-dir";
+import { importAndroidSkin, importIosFrame } from "@storeshots/node";
 import { ProjectFolder, pickLocale, pickTarget } from "./project.ts";
 import { counts, findingLine, inspectionText } from "./format.ts";
 
@@ -648,6 +649,54 @@ export function createServer(defaultDir: string): McpServer {
         });
         msg += ` and put it on ${screen} [${li}]`;
         return afterEdit(folder, project, msg, screen, [li], lc);
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "storeshots_import_frame",
+    {
+      title: "Import a real device frame",
+      description:
+        'Imports an exact device bezel from art already on this machine into the project\'s frames/ folder: the Xcode Simulator\'s bezel for an iPhone or iPad (source "ios", device by name like "iPhone 17 Pro" or by screen size like "1206x2622"; macOS with Xcode only), or an Android Emulator skin from the SDK (source "android", e.g. "pixel_10_pro"). Returns the frame id to use in a device layer. Prefer this over the built-in vector frames when accuracy matters.',
+      inputSchema: {
+        source: z.enum(["ios", "android"]),
+        device: z.string().describe('iOS: a Simulator device name or WxH screen size; Android: an SDK skin name or skin folder'),
+        use_on: z.enum(["none", "matching", "all"]).default("none").describe('"matching": switch device layers whose screenshot is this frame\'s exact size to it; "all": every device layer'),
+        project_dir: projectDir,
+      },
+      annotations: write,
+    },
+    async ({ source, device, use_on, project_dir }) => {
+      try {
+        const folder = folderFor(project_dir);
+        const r = source === "ios" ? await importIosFrame(device, folder.dir) : await importAndroidSkin(device, folder.dir);
+        const lines = [`imported ${r.frame.name} as frame "${r.id}" (${r.frame.display.join("×")} screen). ${r.notice}`];
+        if (use_on !== "none") {
+          const cache = folder.cache();
+          const { project, result } = await folder.edit(async (p) => {
+            const changed: string[] = [];
+            for (const s of p.screens) {
+              for (const [i, l] of s.layers.entries()) {
+                if (l.type !== "device") continue;
+                if (use_on === "matching") {
+                  const found = l.capture ? await cache.capture(p, l.capture, p.locales.default) : null;
+                  if (!found || found.image.width !== r.frame.display[0] || found.image.height !== r.frame.display[1]) continue;
+                }
+                l.frame = r.id;
+                l.variant = undefined;
+                changed.push(`${s.id} [${i}]`);
+              }
+            }
+            return changed;
+          });
+          lines.push(result.length ? `now used on ${result.join(", ")}` : "no device layers matched");
+          const i = await inspectScreen(project, { screen: project.screens[0]!.id }, folder.cache());
+          lines.push(inspectionText(i));
+        }
+        return ok(lines.join("\n"));
       } catch (e) {
         return fail(e);
       }

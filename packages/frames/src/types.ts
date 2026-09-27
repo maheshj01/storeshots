@@ -29,21 +29,28 @@ export interface VectorFrame {
 }
 
 /**
- * A bitmap frame imported from an Android Emulator skin on the user's own
- * machine. Never redistributed. Sizes are in skin pixels.
+ * A bitmap frame imported from art on the user's own machine: an Android
+ * Emulator skin, or the bezel Xcode's Simulator draws. Never redistributed.
+ * Sizes are in the art's pixels.
  */
 export interface BitmapFrame {
   kind: "bitmap";
   id: string;
   name: string;
-  platform: "android";
+  platform: "android" | "ios";
   size: [number, number];
   display: [number, number];
   /** Display top-left inside the skin. */
   screen: { x: number; y: number; w: number; h: number; radius: number };
   background: { src: string; x: number; y: number };
-  /** Display-sized overlay that shapes corners and the camera cutout. */
+  /** Display-sized overlay drawn over the screen: Android skins shape corners and the camera cutout this way. */
   mask?: { src: string } | undefined;
+  /**
+   * Display-sized alpha mask the screenshot is cut to: opaque where the
+   * screen shows. The Simulator's iPhone screens use this, since their
+   * rounded corners reach past the bezel's outer curve.
+   */
+  screenMask?: { src: string } | undefined;
 }
 
 export type FrameDef = VectorFrame | BitmapFrame;

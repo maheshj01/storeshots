@@ -55,6 +55,7 @@ Claude Desktop or other clients, in the MCP config:
 | `storeshots_set_theme` | Theme colours and fonts; restyles every screen that uses them. |
 | `storeshots_apply_template` | Re-lay out every screen with a starter template, keeping captions and screenshots. |
 | `storeshots_import_capture` | Copy a screenshot into `captures/<locale>/` and put it on a phone. |
+| `storeshots_import_frame` | Import an exact bezel from this machine: Xcode's Simulator (iPhone, iPad) or an Android SDK skin; optionally switch matching phones to it. |
 | `storeshots_render` | Write store-ready files to `store/`. Preview images only when asked. |
 
 Positions and sizes are output pixels of the target (default: the first
@@ -90,4 +91,4 @@ findings:
   folder doesn't see an agent's edits until it's reopened.
 - Contrast is checked against solid colours, gradients and shapes; text
   over a screenshot or image isn't checked.
-- Tool definitions are about 20 KB, a one-time cost per session.
+- Tool definitions are about 22 KB, a one-time cost per session.

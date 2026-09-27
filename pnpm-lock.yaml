@@ -161,6 +161,9 @@ importers:
       '@storeshots/core':
         specifier: workspace:*
         version: link:../core
+      '@storeshots/frames':
+        specifier: workspace:*
+        version: link:../frames
     devDependencies:
       '@types/node':
         specifier: ^26.6.2

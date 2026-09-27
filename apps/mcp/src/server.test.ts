@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cp, mkdtemp, readFile, rm, readdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,6 +49,7 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
       "storeshots_edit_screens",
       "storeshots_get_project",
       "storeshots_import_capture",
+      "storeshots_import_frame",
       "storeshots_inspect_screen",
       "storeshots_render",
       "storeshots_set_background",
@@ -177,6 +179,20 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
     const withPreview = await call("storeshots_render", { screens: ["progress"], locales: ["en"], preview: true });
     expect(withPreview.content.filter((c) => c.type === "image")).toHaveLength(1);
   });
+
+  it.skipIf(!existsSync("/Library/Developer/DeviceKit/Chrome"))("imports the Simulator's iPhone bezel and uses it on matching screenshots", async () => {
+    // The Epoch fixture's captures are 1280×2856 (Pixel 9 Pro); import a bezel that matches nothing, then one for all.
+    const none = await call("storeshots_import_frame", { source: "ios", device: "1206x2622", use_on: "matching" });
+    expect(none.error).toBe(false);
+    expect(none.text).toContain('as frame "sim-iphone-17-pro"');
+    expect(none.text).toContain("no device layers matched");
+    const all = await call("storeshots_import_frame", { source: "ios", device: "1206x2622", use_on: "all" });
+    expect(all.text).toContain("now used on progress [2], timeline [3], add-event [2], profile [2]");
+    expect(all.text).toMatch(/\[2\] device sim-iphone-17-pro/);
+    expect(await readdir(join(dir, "frames/sim-iphone-17-pro"))).toEqual(["back.png", "frame.json", "screen-mask.png"]);
+    const render = await call("storeshots_render", { screens: ["progress"], locales: ["en"] });
+    expect(render.text).toContain("rendered 1 image");
+  }, 120_000);
 
   it("applies a template, keeping captions", async () => {
     const r = await call("storeshots_apply_template", { template: "editorial", brand: "#0E9F6E" });
