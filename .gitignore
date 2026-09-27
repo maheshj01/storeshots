@@ -4,3 +4,5 @@ dist/
 examples/*/store/
 tools/goldens/out/
 .DS_Store
+apps/mcp/fonts/
+*.tgz

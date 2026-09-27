@@ -1,20 +1,30 @@
 {
-  "name": "@storeshots/mcp",
-  "version": "0.0.0",
+  "name": "storeshots-mcp-server",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "MCP server that lets AI agents read, check and edit storeshots projects without looking at screenshots",
-  "bin": { "storeshots-mcp-server": "./src/main.ts" },
+  "description": "MCP server for AI agents to read, check and edit App Store and Google Play screenshot designs (storeshots.json) without looking at screenshots",
+  "keywords": ["mcp", "model-context-protocol", "app-store", "google-play", "screenshots", "claude"],
+  "bin": { "storeshots-mcp-server": "dist/storeshots-mcp-server.js" },
+  "files": ["dist", "fonts", "README.md"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepack": "node build.mjs"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",
+    "@napi-rs/canvas": "^0.1.80",
+    "zod": "^4"
+  },
+  "devDependencies": {
     "@storeshots/core": "workspace:*",
     "@storeshots/frames": "workspace:*",
     "@storeshots/node": "workspace:*",
     "@storeshots/ops": "workspace:*",
     "@storeshots/schema": "workspace:*",
     "@storeshots/stores": "workspace:*",
-    "@napi-rs/canvas": "^0.1.80",
-    "zod": "^4"
-  },
-  "devDependencies": { "@types/node": "^26.6.2" }
+    "@types/node": "^26.6.2",
+    "esbuild": "^0.28.2"
+  }
 }

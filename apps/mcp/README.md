@@ -14,23 +14,25 @@ as the CLI, so what an agent changes is what people see and what exports.
 
 ## Set up
 
-Needs Node 22.18 or later (it runs the TypeScript sources directly) and
-`pnpm install` in this repository.
+Needs Node.js 20 or later. Point it at the folder that holds your
+`storeshots.json` (in the web editor, **Link a folder** creates one and keeps
+it in sync, so you see the agent's changes as it works).
 
 Claude Code, from your app's repository:
 
 ```
-claude mcp add storeshots -- node /path/to/storeshots/apps/mcp/src/main.ts --project ./store-assets
+claude mcp add storeshots -- npx -y storeshots-mcp-server --project ./store-assets
 ```
 
-Claude Desktop or other clients, in the MCP config:
+Claude Desktop (Settings → Developer → Edit Config), Cursor
+(`.cursor/mcp.json`) and other MCP clients:
 
 ```json
 {
   "mcpServers": {
     "storeshots": {
-      "command": "node",
-      "args": ["/path/to/storeshots/apps/mcp/src/main.ts", "--project", "/path/to/app/store-assets"]
+      "command": "npx",
+      "args": ["-y", "storeshots-mcp-server", "--project", "/path/to/app/store-assets"]
     }
   }
 }
@@ -38,6 +40,13 @@ Claude Desktop or other clients, in the MCP config:
 
 `--project` defaults to the working folder. Every tool also takes
 `project_dir`, so one server can work on several projects.
+
+### From this repository
+
+`pnpm mcp --project <folder>` runs the TypeScript sources directly.
+`pnpm --filter storeshots-mcp-server build` bundles `dist/` and copies the
+template fonts, and `npm pack` in `apps/mcp` makes the package that gets
+published.
 
 ## Tools
 
