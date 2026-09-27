@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AssetCache, renderScreen } from "@storeshots/core";
 import { useEditor } from "../state/store.ts";
 import { saveDoc, saveThumbnail } from "../state/persist.ts";
-import { deleteLayer, duplicateLayer, updateLayer } from "../state/actions.ts";
+import { deleteLayer, duplicateLayer, moveLayerTo, updateLayer } from "../state/actions.ts";
 import { assetHost } from "../engine/host.ts";
 import { TopBar } from "./TopBar.tsx";
 import { LeftPanel } from "./LeftPanel.tsx";
@@ -64,6 +64,17 @@ export function Editor() {
         return window.dispatchEvent(new CustomEvent("storeshots:export"));
       }
       if (typing(e)) return;
+      // ⌘] / ⌘[ restack one step; with Shift, to the front or back.
+      // Match the key's character too, for layouts where [ isn't on the US key.
+      const bracketUp = e.code === "BracketRight" || e.key === "]" || e.key === "}";
+      const bracketDown = e.code === "BracketLeft" || e.key === "[" || e.key === "{";
+      if (mod && (bracketUp || bracketDown) && s.selection.layer !== null && s.selection.screen) {
+        e.preventDefault();
+        const n = s.doc!.screens.find((x) => x.id === s.selection.screen)!.layers.length;
+        const i = s.selection.layer;
+        const up = bracketUp;
+        return moveLayerTo(s.selection.screen, i, e.shiftKey ? (up ? n - 1 : 0) : i + (up ? 1 : -1));
+      }
       if (mod && e.key.toLowerCase() === "d" && s.selection.layer !== null) {
         e.preventDefault();
         return duplicateLayer();

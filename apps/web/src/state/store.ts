@@ -34,6 +34,8 @@ export interface EditorState {
   docSavedToFolder: boolean;
 
   selection: Selection;
+  /** The layer under the pointer, on the canvas or in the layers list; shown on both. */
+  hover: Selection;
   locale: string;
   target: string;
   zoom: number;
@@ -52,6 +54,7 @@ export interface EditorState {
   redo(): void;
   addAssets(files: Array<[string, Blob]>): void;
   select(sel: Partial<Selection>): void;
+  setHover(hover: Selection): void;
   setLocale(locale: string): void;
   setTarget(target: string): void;
   setZoom(zoom: number): void;
@@ -69,6 +72,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   unsavedAssets: new Set(),
   docSavedToFolder: true,
   selection: { screen: null, layer: null },
+  hover: { screen: null, layer: null },
   locale: "en",
   target: "",
   zoom: 1,
@@ -173,6 +177,10 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   select(sel) {
     set({ selection: { ...get().selection, ...sel } });
+  },
+  setHover(hover) {
+    const h = get().hover;
+    if (h.screen !== hover.screen || h.layer !== hover.layer) set({ hover });
   },
   setLocale: (locale) => set({ locale }),
   setTarget: (target) => set({ target }),

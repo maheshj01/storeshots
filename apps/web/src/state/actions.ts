@@ -137,13 +137,13 @@ export function duplicateLayer() {
   S().select({ layer: next });
 }
 
-export function moveLayer(delta: number) {
-  const { screen, index } = selected();
-  if (!screen || index === null) return;
-  const to = index + delta;
-  if (to < 0 || to >= screen.layers.length) return;
-  S().edit(delta > 0 ? "Bring forward" : "Send backward", (d) => ops.moveLayer(d as Project, screen.id, index, to));
-  S().select({ layer: to });
+/** Moves the selected layer to a stacking position (0 = bottom) and keeps it selected. */
+export function moveLayerTo(screenId: string, index: number, to: number) {
+  const screen = S().doc?.screens.find((s) => s.id === screenId);
+  if (!screen || to < 0 || to >= screen.layers.length || to === index) return;
+  const label = to === screen.layers.length - 1 ? "Bring to front" : to === 0 ? "Send to back" : "Reorder layers";
+  S().edit(label, (d) => ops.moveLayer(d as Project, screenId, index, to));
+  S().select({ screen: screenId, layer: to });
 }
 
 export function setLayerText(screenId: string, index: number, value: string) {

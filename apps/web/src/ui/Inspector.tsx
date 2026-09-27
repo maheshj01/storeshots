@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Copy, Trash2, AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, LayoutTemplate } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ChevronDown, ChevronsDown, ChevronsUp, ChevronUp, Copy, Trash2, AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, LayoutTemplate } from "lucide-react";
 import type { Background, DeviceLayer, ImageLayer, Layer, ShapeLayer, TextLayer } from "@storeshots/schema";
 import { CATALOG } from "@storeshots/frames";
 import { useEditor, useSelectedScreen, useTarget } from "../state/store.ts";
 import {
-  addFont, applyLayoutToAll, captureList, deleteLayer, duplicateLayer, ensureFonts, layerText, moveLayer, setCapture, setLayerText, switchTemplate, updateLayer,
+  addFont, applyLayoutToAll, captureList, deleteLayer, duplicateLayer, ensureFonts, layerText, moveLayerTo, setCapture, setLayerText, switchTemplate, updateLayer,
 } from "../state/actions.ts";
 import { BUNDLED_FONTS, TEMPLATES } from "@storeshots/ops";
 import { decodeImage } from "../engine/host.ts";
@@ -120,20 +120,18 @@ function ThemeColors() {
 function LayerInspector({ layer }: { layer: Layer }) {
   const target = useTarget()!;
   const [W, H] = target.size;
+  const sel = useEditor((s) => s.selection);
+  const count = useSelectedScreen()!.layers.length;
+  const index = sel.layer!;
   const up = (label: string, fn: (l: Layer) => void) => updateLayer(label, fn);
   const title = { text: "Text", device: "Device", image: "Image", shape: "Shape" }[layer.type];
+  const restack = (to: number) => moveLayerTo(sel.screen!, index, to);
   return (
     <>
       <Section
         title={title}
         action={
           <span className="row" style={{ gap: 0 }}>
-            <button type="button" className="btn ghost icon" title="Bring forward" onClick={() => moveLayer(1)}>
-              <ArrowUp aria-hidden />
-            </button>
-            <button type="button" className="btn ghost icon" title="Send backward" onClick={() => moveLayer(-1)}>
-              <ArrowDown aria-hidden />
-            </button>
             <button type="button" className="btn ghost icon" title="Duplicate (⌘D)" onClick={duplicateLayer}>
               <Copy aria-hidden />
             </button>
@@ -147,6 +145,22 @@ function LayerInspector({ layer }: { layer: Layer }) {
         {layer.type === "device" && <DeviceFields layer={layer} />}
         {layer.type === "image" && <ImageFields layer={layer} />}
         {layer.type === "shape" && <ShapeFields layer={layer} />}
+      </Section>
+      <Section title="Stacking" action={<span className="label">layer {index + 1} of {count}, from the bottom</span>}>
+        <div className="seg stack" role="group" aria-label="Stacking order">
+          <button type="button" title="Send to back (⇧⌘[)" disabled={index === 0} onClick={() => restack(0)}>
+            <ChevronsDown aria-hidden /> Back
+          </button>
+          <button type="button" title="Send backward (⌘[)" disabled={index === 0} onClick={() => restack(index - 1)}>
+            <ChevronDown aria-hidden /> Backward
+          </button>
+          <button type="button" title="Bring forward (⌘])" disabled={index === count - 1} onClick={() => restack(index + 1)}>
+            <ChevronUp aria-hidden /> Forward
+          </button>
+          <button type="button" title="Bring to front (⇧⌘])" disabled={index === count - 1} onClick={() => restack(count - 1)}>
+            <ChevronsUp aria-hidden /> Front
+          </button>
+        </div>
       </Section>
       <Section title="Position">
         <div className="grid2">

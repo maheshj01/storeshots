@@ -89,11 +89,17 @@ describe("layers", () => {
     expect(S().doc!.screens[0]!.layers[2]).toMatchObject({ frame: "pixel-7", capture: "p7.png" });
   });
 
-  it("moves layers up and down", () => {
-    S().select({ screen: "screen-1", layer: 0 });
-    A.moveLayer(1);
-    expect(S().selection.layer).toBe(1);
-    expect(S().doc!.screens[0]!.layers[1]!.type).toBe("text");
+  it("restacks layers and keeps them selected", () => {
+    A.moveLayerTo("screen-1", 0, 1);
+    expect(S().selection).toEqual({ screen: "screen-1", layer: 1 });
+    expect(S().past.at(-1)!.label).toBe("Reorder layers");
+    A.moveLayerTo("screen-1", 1, 2);
+    expect(S().past.at(-1)!.label).toBe("Bring to front");
+    expect(S().doc!.screens[0]!.layers[2]!.type).toBe("text");
+    const before = S().past.length;
+    A.moveLayerTo("screen-1", 2, 2);
+    A.moveLayerTo("screen-1", 2, 9);
+    expect(S().past.length).toBe(before);
   });
 
   it("duplicates text with its own caption", () => {

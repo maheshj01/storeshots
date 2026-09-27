@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Image as ImageIcon, Smartphone, Square, Type, Upload } from "lucide-react";
-import type { Layer, Project } from "@storeshots/schema";
+import { ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, Smartphone, Square, Type, Upload } from "lucide-react";
+import type { Project } from "@storeshots/schema";
 import { CATALOG, type VectorFrame } from "@storeshots/frames";
 import { frameAspect } from "@storeshots/core";
 import { useEditor, useSelectedScreen } from "../state/store.ts";
-import { addImageLayer, addLayer, captureList, fillWithCaptures, layerText, setCapture, storeCaptures, updateLayer } from "../state/actions.ts";
+import { addImageLayer, addLayer, captureList, fillWithCaptures, moveLayerTo, setCapture, storeCaptures, updateLayer } from "../state/actions.ts";
+import { layerName, TYPE_LABEL } from "./layerName.ts";
 import { renderStandalone } from "../engine/preview.ts";
 import { decodeImage } from "../engine/host.ts";
 
@@ -30,26 +31,86 @@ export function LeftPanel() {
 
 const ICONS = { text: Type, device: Smartphone, image: ImageIcon, shape: Square } as const;
 
-function layerName(doc: Project, l: Layer, locale: string): string {
-  if (l.type === "text") return layerText(doc, l, locale) || "Empty text";
-  if (l.type === "device") {
-    const id = typeof l.frame === "string" ? l.frame : (l.frame.android ?? l.frame.ios ?? "");
-    const name = CATALOG.find((f) => f.id === id)?.name ?? id;
-    return l.capture ? `${name} · ${l.capture}` : `${name} · no screenshot`;
-  }
-  if (l.type === "image") return l.src.split("/").pop() ?? "Image";
-  return l.shape === "ellipse" ? "Ellipse" : "Rectangle";
-}
-
+/**
+ * The selected screen's layers, top of the stack first, as in every design
+ * tool. Drag a row to restack it, or use its arrows; hovering a row
+ * highlights the layer on the canvas and the other way round.
+ */
 function Layers() {
   const doc = useEditor((s) => s.doc!);
   const locale = useEditor((s) => s.locale);
   const screen = useSelectedScreen();
   const selected = useEditor((s) => s.selection.layer);
+  const hover = useEditor((s) => (s.hover.screen === s.selection.screen ? s.hover.layer : null));
   const imageInput = useRef<HTMLInputElement>(null);
+  // Row being dragged, and the row and half it's over.
+  const [drag, setDrag] = useState<{ from: number; over: number | null; above: boolean } | null>(null);
+  const list = useRef<HTMLUListElement>(null);
+  // The click that ends a drag must not select the row now at the old index.
+  const justDragged = useRef(false);
+
+  // Keep the selected row in view when the selection changes on the canvas.
+  useEffect(() => {
+    list.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [selected, screen?.id]);
+
   if (!screen) return <p className="hint section">Select a screen to see its layers.</p>;
-  // Topmost first, like every design tool.
+  const n = screen.layers.length;
+  const index = doc.screens.findIndex((s) => s.id === screen.id);
   const rows = screen.layers.map((l, i) => [l, i] as const).reverse();
+
+  /** Final stacking index when dropping above or below row `over`. */
+  const dropIndex = (from: number, over: number, above: boolean) => {
+    // Rows are drawn top of the stack first, so "above" means a higher index.
+    let to = above ? over + 1 : over;
+    if (from < to) to -= 1;
+    return Math.max(0, Math.min(n - 1, to));
+  };
+
+  /**
+   * Pointer-driven restacking: a press that moves more than a few pixels
+   * becomes a drag; the row under the pointer and its half decide where
+   * the layer lands. A press that doesn't move is an ordinary click.
+   */
+  const startRowDrag = (e: React.PointerEvent, from: number) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest(".row-tools")) return;
+    const startY = e.clientY;
+    let state: { from: number; over: number | null; above: boolean } | null = null;
+    const move = (ev: PointerEvent) => {
+      if (!state && Math.abs(ev.clientY - startY) < 4) return;
+      state ??= { from, over: null, above: false };
+      const rows = [...(list.current?.querySelectorAll<HTMLElement>("li[data-layer]") ?? [])];
+      // The row under the pointer, or the first or last row past either end.
+      const hit =
+        rows.find((r) => {
+          const b = r.getBoundingClientRect();
+          return ev.clientY >= b.top && ev.clientY < b.bottom;
+        }) ?? (ev.clientY < (rows[0]?.getBoundingClientRect().top ?? 0) ? rows[0] : rows[rows.length - 1]);
+      if (!hit) return;
+      const b = hit.getBoundingClientRect();
+      state = { from, over: Number(hit.dataset.layer), above: ev.clientY < b.top + b.height / 2 };
+      setDrag(state);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      if (state && state.over !== null) {
+        moveLayerTo(screen.id, state.from, dropIndex(state.from, state.over, state.above));
+        justDragged.current = true;
+        setTimeout(() => (justDragged.current = false), 0);
+      }
+      setDrag(null);
+    };
+    const cancel = () => {
+      state = null;
+      up();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+  };
+
   return (
     <>
       <div className="section">
@@ -80,20 +141,64 @@ function Layers() {
           }}
         />
       </div>
-      <ul className="layers" aria-label={`Layers of ${screen.id}`}>
+      <div className="layers-head">
+        <span className="badge">{String(index + 1).padStart(2, "0")}</span>
+        <span className="title">
+          <b>{screen.id}</b>
+          <small>
+            {n} {n === 1 ? "layer" : "layers"}
+            {n > 1 ? " · top of the stack first" : ""}
+          </small>
+        </span>
+      </div>
+      <ul
+        ref={list}
+        className={`layers${drag ? " sorting" : ""}`}
+        aria-label={`Layers of ${screen.id}, top first`}
+        onPointerLeave={() => useEditor.getState().setHover({ screen: null, layer: null })}
+      >
         {rows.map(([l, i]) => {
           const Icon = ICONS[l.type];
+          const moves = drag && drag.over === i && dropIndex(drag.from, i, drag.above) !== drag.from;
           return (
-            <li key={i}>
-              <button type="button" aria-current={selected === i} onClick={() => useEditor.getState().select({ layer: i })}>
+            <li
+              key={i}
+              className={`${moves ? (drag!.above ? "drop-above" : "drop-below") : ""}${drag?.from === i ? " dragging" : ""}`}
+              data-layer={i}
+              onPointerDown={(e) => startRowDrag(e, i)}
+              onPointerEnter={() => !drag && useEditor.getState().setHover({ screen: screen.id, layer: i })}
+            >
+              <button
+                type="button"
+                className={hover === i && selected !== i ? "hovered" : undefined}
+                aria-current={selected === i}
+                onClick={() => !justDragged.current && useEditor.getState().select({ layer: i })}
+                onKeyDown={(e) => {
+                  // Alt + arrows restack from the keyboard.
+                  if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+                  e.preventDefault();
+                  moveLayerTo(screen.id, i, i + (e.key === "ArrowUp" ? 1 : -1));
+                }}
+                title={`${TYPE_LABEL[l.type]} · layer ${i + 1} of ${n} from the bottom. Drag or Alt+↑/↓ to restack.`}
+              >
+                <GripVertical className="grip" aria-hidden />
                 <Icon aria-hidden />
-                <span>{layerName(doc, l, locale)}</span>
+                <span className="name">{layerName(doc, l, locale)}</span>
+                <span className="kind">{TYPE_LABEL[l.type]}</span>
               </button>
+              <span className="row-tools">
+                <button type="button" className="btn ghost icon" title="Bring forward" aria-label={`Bring ${TYPE_LABEL[l.type].toLowerCase()} forward`} disabled={i === n - 1} onClick={() => moveLayerTo(screen.id, i, i + 1)}>
+                  <ChevronUp aria-hidden />
+                </button>
+                <button type="button" className="btn ghost icon" title="Send backward" aria-label={`Send ${TYPE_LABEL[l.type].toLowerCase()} backward`} disabled={i === 0} onClick={() => moveLayerTo(screen.id, i, i - 1)}>
+                  <ChevronDown aria-hidden />
+                </button>
+              </span>
             </li>
           );
         })}
       </ul>
-      {screen.layers.length === 0 && <p className="hint section">This screen is empty. Add a device and a caption above.</p>}
+      {n === 0 && <p className="hint section">This screen is empty. Add a device and a caption above.</p>}
     </>
   );
 }

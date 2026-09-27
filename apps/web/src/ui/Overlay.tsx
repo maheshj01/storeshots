@@ -5,6 +5,7 @@ import { frameGeometry } from "@storeshots/core";
 import { useEditor } from "../state/store.ts";
 import { updateLayer } from "../state/actions.ts";
 import { useFrameDef } from "../engine/preview.ts";
+import { layerName, TYPE_LABEL } from "./layerName.ts";
 
 /**
  * Selection, move, resize and rotate, drawn as DOM on top of the rendered
@@ -51,7 +52,11 @@ function frameIdOf(l: DeviceLayer, store: string): string | undefined {
 export function Overlay({ screen, width, height, target, active }: Props) {
   const selectedLayer = useEditor((s) => (s.selection.screen === screen.id ? s.selection.layer : null));
   const store = useEditor((s) => s.doc?.targets.find((t) => t.id === s.target)?.store ?? "play");
-  const [hover, setHover] = useState<number | null>(null);
+  // Shared with the layers list, so hovering either one highlights both.
+  const hover = useEditor((s) => (s.hover.screen === screen.id ? s.hover.layer : null));
+  const setHover = (layer: number | null) => useEditor.getState().setHover({ screen: layer === null ? null : screen.id, layer });
+  const doc = useEditor((s) => s.doc!);
+  const locale = useEditor((s) => s.locale);
   const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
   const [readout, setReadout] = useState<{ x: number; y: number; text: string } | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -230,7 +235,7 @@ export function Overlay({ screen, width, height, target, active }: Props) {
       className="overlay"
       onPointerDown={onPointerDown}
       onPointerMove={(e) => setHover(hitTest(local(e)))}
-      onPointerLeave={() => setHover(null)}
+      onPointerLeave={() => hover !== null && setHover(null)}
       onDoubleClick={() => {
         if (sel?.type === "text") window.dispatchEvent(new CustomEvent("storeshots:edit-text"));
       }}
@@ -238,7 +243,13 @@ export function Overlay({ screen, width, height, target, active }: Props) {
       {screen.layers.map((l, i) =>
         l.type === "device" && !l.capture ? <EmptyScreen key={i} layer={l} rect={rectOf(l)} frameId={frameIdOf(l, store)} /> : null,
       )}
-      {hov && <Box rect={bodyOf(hov)} rotate={hov.rotate} center={rectOf(hov)} className="sel hover" />}
+      {hov && (
+        <>
+          <Box rect={bodyOf(hov)} rotate={hov.rotate} center={rectOf(hov)} className="sel hover" />
+          <Tag rect={bodyOf(hov)} text={`${TYPE_LABEL[hov.type]} · ${layerName(doc, hov, locale)}`} muted />
+        </>
+      )}
+      {sel && active && <Tag rect={bodyOf(sel)} text={`${TYPE_LABEL[sel.type]} · ${layerName(doc, sel, locale)}`} />}
       {sel && active && (
         <Selection
           layer={sel}
@@ -259,6 +270,18 @@ export function Overlay({ screen, width, height, target, active }: Props) {
           {readout.text}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The layer's name just above its top-left corner, kept upright and inside
+ * the sheet so it's readable over any background.
+ */
+function Tag({ rect, text, muted }: { rect: Rect; text: string; muted?: boolean }) {
+  return (
+    <div className={`layer-tag${muted ? " muted" : ""}`} style={{ left: Math.max(0, rect.x), top: Math.max(0, rect.y) }}>
+      {text}
     </div>
   );
 }
