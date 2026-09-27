@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Download, FolderInput, Redo2, Undo2, Package } from "lucide-react";
+import { Download, FolderSync, FolderX, Redo2, Undo2, Package, Sparkles, FolderPlus } from "lucide-react";
 import { useEditor } from "../state/store.ts";
-import { download, ensureWritable, exportZip, saveToFolder, slug } from "../state/io.ts";
+import { canUseFolders, download, exportZip, slug } from "../state/io.ts";
+import { linkFolder, reconnectFolder, useSyncStatus } from "../engine/folderSync.ts";
+import { AiDialog } from "./AiDialog.tsx";
 import { deviceLabel } from "./Table.tsx";
 import { TextInput } from "./fields.tsx";
 import { ExportDialog } from "./ExportDialog.tsx";
@@ -13,9 +15,8 @@ export function TopBar({ onHome, saved }: { onHome: () => void; saved: boolean }
   const target = useEditor((s) => s.target);
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
-  const folder = useEditor((s) => s.folder);
-  const folderDirty = useEditor((s) => !s.docSavedToFolder || s.unsavedAssets.size > 0);
   const [exporting, setExporting] = useState(false);
+  const [ai, setAi] = useState(false);
 
   useEffect(() => {
     const open = () => setExporting(true);
@@ -23,14 +24,11 @@ export function TopBar({ onHome, saved }: { onHome: () => void; saved: boolean }
     return () => window.removeEventListener("storeshots:export", open);
   }, []);
 
-  const saveFolder = async () => {
-    const s = useEditor.getState();
-    if (!s.folder || !s.doc) return;
-    if (!(await ensureWritable(s.folder))) return toast("Saving needs permission to write to the folder.", true);
-    await saveToFolder(s.folder, s.doc, s.assets, s.unsavedAssets);
-    s.markFolderSaved();
-    toast(`Saved to ${s.folder.name}/storeshots.json`);
-  };
+  useEffect(() => {
+    const open = () => setAi(true);
+    window.addEventListener("storeshots:ai", open);
+    return () => window.removeEventListener("storeshots:ai", open);
+  }, []);
 
   return (
     <header className="topbar">
@@ -71,11 +69,10 @@ export function TopBar({ onHome, saved }: { onHome: () => void; saved: boolean }
         <Redo2 aria-hidden />
       </button>
       <span className="divider" />
-      {folder && (
-        <button type="button" className="btn" onClick={saveFolder} title={`Write storeshots.json and new files into ${folder.name}`}>
-          <FolderInput aria-hidden /> <span className="hide-narrow">{folderDirty ? `Save to ${folder.name}` : `Saved to ${folder.name}`}</span>
-        </button>
-      )}
+      <FolderStatus />
+      <button type="button" className="btn" onClick={() => setAi(true)} title="Edit these screenshots with Claude or another AI agent">
+        <Sparkles aria-hidden /> <span className="hide-narrow">AI</span>
+      </button>
       <button
         type="button"
         className="btn"
@@ -91,6 +88,46 @@ export function TopBar({ onHome, saved }: { onHome: () => void; saved: boolean }
         <Download aria-hidden /> Export
       </button>
       {exporting && <ExportDialog onClose={() => setExporting(false)} />}
+      {ai && <AiDialog onClose={() => setAi(false)} />}
     </header>
+  );
+}
+
+/** Where the project lives on disk, and whether it's in sync with the folder. */
+function FolderStatus() {
+  const folder = useEditor((s) => s.folder);
+  const status = useSyncStatus((s) => s.status);
+  if (!folder) {
+    if (!canUseFolders) return null;
+    return (
+      <button
+        type="button"
+        className="btn hide-narrow"
+        title="Save this project into a folder (e.g. in your app's repo) and keep it in sync, so AI agents and the CLI can work on it"
+        onClick={async () => {
+          try {
+            const name = await linkFolder();
+            if (name) toast(`Linked to ${name}. Changes sync both ways.`);
+          } catch (e) {
+            if ((e as DOMException).name !== "AbortError") toast((e as Error).message, true);
+          }
+        }}
+      >
+        <FolderPlus aria-hidden /> Link a folder
+      </button>
+    );
+  }
+  if (status.kind === "reconnect") {
+    return (
+      <button type="button" className="btn" onClick={() => void reconnectFolder()} title="Your browser needs permission again to read and write this folder">
+        <FolderX aria-hidden /> <span className="hide-narrow">Reconnect {folder.name}</span>
+      </button>
+    );
+  }
+  const label = status.kind === "saving" ? `Saving to ${folder.name}…` : status.kind === "error" ? `${folder.name}: sync problem` : `Synced with ${folder.name}`;
+  return (
+    <span className={`sync${status.kind === "error" ? " bad" : ""}`} title={status.kind === "error" ? status.message : "Changes save to the folder, and changes made there (by an AI agent, the CLI or git) appear here"}>
+      <FolderSync aria-hidden /> <span className="hide-narrow">{label}</span>
+    </span>
   );
 }

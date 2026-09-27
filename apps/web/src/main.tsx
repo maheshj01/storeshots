@@ -14,6 +14,13 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>,
 );
 
+// Development only: the live editor state, for tests and debugging from the console.
+if (import.meta.env.DEV) {
+  void Promise.all([import("./state/store.ts"), import("./engine/folderSync.ts")]).then(([store, sync]) => {
+    (window as unknown as Record<string, unknown>).__storeshots = { useEditor: store.useEditor, useSyncStatus: sync.useSyncStatus };
+  });
+}
+
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"));
 }

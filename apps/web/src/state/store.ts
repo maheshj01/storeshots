@@ -52,7 +52,9 @@ export interface EditorState {
   endGesture(): void;
   undo(): void;
   redo(): void;
-  addAssets(files: Array<[string, Blob]>): void;
+  /** Adds project files; `fromFolder` marks ones read from the linked folder, which needn't be written back. */
+  addAssets(files: Array<[string, Blob]>, opts?: { fromFolder?: boolean }): void;
+  setFolder(folder: FileSystemDirectoryHandle | null): void;
   select(sel: Partial<Selection>): void;
   setHover(hover: Selection): void;
   setLocale(locale: string): void;
@@ -165,12 +167,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     fixSelection();
   },
 
-  addAssets(files) {
+  addAssets(files, opts) {
     const assets = new Map(get().assets);
     const unsaved = new Set(get().unsavedAssets);
     for (const [path, blob] of files) {
       assets.set(path, blob);
-      unsaved.add(path);
+      if (opts?.fromFolder) unsaved.delete(path);
+      else unsaved.add(path);
     }
     set({ assets, assetsVersion: get().assetsVersion + 1, unsavedAssets: unsaved });
   },
@@ -182,6 +185,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const h = get().hover;
     if (h.screen !== hover.screen || h.layer !== hover.layer) set({ hover });
   },
+  setFolder: (folder) => set({ folder }),
   setLocale: (locale) => set({ locale }),
   setTarget: (target) => set({ target }),
   setZoom: (zoom) => set({ zoom: Math.min(3, Math.max(0.25, zoom)) }),

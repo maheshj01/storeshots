@@ -93,7 +93,8 @@ export async function openFolder(): Promise<LoadedProject & { handle: FileSystem
   return { ...(await finish(files, handle.name)), handle };
 }
 
-async function writeFile(root: FileSystemDirectoryHandle, path: string, data: Blob | string) {
+/** Writes a project file into a folder, creating subfolders; returns the written file. */
+export async function writeFolderFile(root: FileSystemDirectoryHandle, path: string, data: Blob | string): Promise<File> {
   const parts = path.split("/");
   let dir = root;
   for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p, { create: true });
@@ -101,6 +102,14 @@ async function writeFile(root: FileSystemDirectoryHandle, path: string, data: Bl
   const w = await file.createWritable();
   await w.write(data);
   await w.close();
+  return file.getFile();
+}
+
+/** Every project file in a folder (skipping rendered output and tooling folders). */
+export async function readFolderFiles(root: FileSystemDirectoryHandle): Promise<Map<string, Blob>> {
+  const files = new Map<string, Blob>();
+  await walk(root, "", files);
+  return files;
 }
 
 /** Asks for write access if needed; returns false if the person declines. */
@@ -111,15 +120,6 @@ export async function ensureWritable(handle: FileSystemDirectoryHandle): Promise
   };
   if ((await h.queryPermission({ mode: "readwrite" })) === "granted") return true;
   return (await h.requestPermission({ mode: "readwrite" })) === "granted";
-}
-
-/** Writes storeshots.json and any new assets into the linked folder. */
-export async function saveToFolder(handle: FileSystemDirectoryHandle, doc: Project, assets: Map<string, Blob>, paths: Iterable<string>) {
-  await writeFile(handle, "storeshots.json", serializeProject(doc));
-  for (const p of paths) {
-    const blob = assets.get(p);
-    if (blob) await writeFile(handle, p, blob);
-  }
 }
 
 /** Starts a browser download of a blob. */

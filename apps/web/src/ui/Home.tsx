@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useObjectUrls } from "./useObjectUrls.ts";
-import { FolderOpen, Plus, Trash2, FileArchive } from "lucide-react";
+import { FolderOpen, Plus, Trash2, FileArchive, Sparkles } from "lucide-react";
+import { AiDialog, PACKAGE } from "./AiDialog.tsx";
 import { deleteProject, listProjects, loadProject, newProjectId, saveAssets, saveDoc, type ProjectMeta } from "../state/persist.ts";
 import { canUseFolders, importZip, openFolder, type LoadedProject } from "../state/io.ts";
 import { useEditor } from "../state/store.ts";
@@ -27,6 +28,7 @@ function ago(t: number): string {
 export function Home() {
   const [projects, setProjects] = useState<ProjectMeta[] | null>(null);
   const [creating, setCreating] = useState(false);
+  const [ai, setAi] = useState(false);
   const zip = useRef<HTMLInputElement>(null);
   const refresh = () => listProjects().then(setProjects);
   useEffect(() => void refresh(), []);
@@ -88,6 +90,20 @@ export function Home() {
           />
         </div>
 
+        <section className="ai-card" aria-labelledby="ai-card-title">
+          <div>
+            <h2 id="ai-card-title">Works with Claude and other AI agents</h2>
+            <p>
+              An MCP server lets Claude Code, Claude Desktop, Cursor and other agents check and edit your screenshots. They read each
+              screen as text, not images, and their changes show up here as they work.
+            </p>
+            <code className="ai-cmd">npx {PACKAGE}</code>
+          </div>
+          <button type="button" className="btn" onClick={() => setAi(true)}>
+            <Sparkles aria-hidden /> Set up AI editing
+          </button>
+        </section>
+
         <h2>Projects in this browser</h2>
         {projects && projects.length === 0 && (
           <div className="empty">
@@ -131,6 +147,7 @@ export function Home() {
         </div>
       </div>
       {creating && <NewProjectDialog onClose={() => setCreating(false)} />}
+      {ai && <AiDialog onClose={() => setAi(false)} />}
     </main>
   );
 }

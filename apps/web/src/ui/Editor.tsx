@@ -4,6 +4,7 @@ import { useEditor } from "../state/store.ts";
 import { saveDoc, saveThumbnail } from "../state/persist.ts";
 import { deleteLayer, duplicateLayer, moveLayerTo, updateLayer } from "../state/actions.ts";
 import { assetHost } from "../engine/host.ts";
+import { useFolderSync } from "../engine/folderSync.ts";
 import { TopBar } from "./TopBar.tsx";
 import { LeftPanel } from "./LeftPanel.tsx";
 import { Table } from "./Table.tsx";
@@ -46,6 +47,7 @@ function useAutosave(): boolean {
 
 export function Editor() {
   const saved = useAutosave();
+  useFolderSync();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
