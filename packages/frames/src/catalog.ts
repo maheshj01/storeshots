@@ -103,7 +103,120 @@ function genericAndroid(): VectorFrame {
   };
 }
 
-export const CATALOG: readonly VectorFrame[] = [pixel9Pro(), pixel7(), genericAndroid()];
+// iPhones ------------------------------------------------------------------
+
+/** Screen size in millimetres from a pixel resolution and density. */
+function screenFromPpi([pw, ph]: [number, number], ppi: number): [number, number] {
+  return [(pw / ppi) * 25.4, (ph / ppi) * 25.4];
+}
+
+/** iOS points to millimetres on a 3x, 460 ppi display. */
+const pt = (v: number) => (v * 3 * 25.4) / 460;
+
+interface IphoneSpec {
+  id: string;
+  name: string;
+  /** From Apple's tech specs page. */
+  body: { w: number; h: number };
+  display: [number, number];
+  /** Dynamic Island width in points; Apple doesn't publish it. */
+  islandPt: number;
+  variants: VectorFrame["variants"];
+  defaultVariant: string;
+  source: string;
+}
+
+/**
+ * An iPhone drawn from Apple's published body size and display resolution
+ * at 460 ppi. Corner radii, button positions and the Dynamic Island are
+ * approximations from photos and iOS metrics; they're not published.
+ * Buttons: Action button and volume on the left, side button and Camera
+ * Control on the right, placed in proportion to the body height.
+ */
+function iphone(spec: IphoneSpec): VectorFrame {
+  const [sw, sh] = screenFromPpi(spec.display, 460);
+  const s = centred(spec.body, [sw, sh]);
+  const k = spec.body.h / 150; // positions measured on a 150 mm body
+  const at = (from: number, to: number) => ({ from: from * k, to: to * k });
+  return {
+    kind: "vector",
+    id: spec.id,
+    name: spec.name,
+    platform: "ios",
+    source: spec.source,
+    display: spec.display,
+    body: { ...spec.body, radius: pt(62) + (spec.body.w - sw) / 2, rim: 0.8 },
+    screen: { ...s, radius: pt(62) },
+    cutout: { type: "island", cx: sw / 2, cy: pt(11) + pt(37) / 2, w: pt(spec.islandPt), h: pt(37) },
+    buttons: [
+      { side: "left", ...at(24, 31), depth: 0.55 },
+      { side: "left", ...at(37, 47), depth: 0.55 },
+      { side: "left", ...at(50, 60), depth: 0.55 },
+      { side: "right", ...at(38, 53), depth: 0.55 },
+      { side: "right", ...at(86, 97), depth: 0.3 },
+    ],
+    variants: spec.variants,
+    defaultVariant: spec.defaultVariant,
+  };
+}
+
+// Finish colours are approximations of Apple's product photos.
+const IPHONE_18_PRO_VARIANTS = {
+  black: { body: "#2A2A2C", rim: "#48484B", button: "#343437" },
+  silver: { body: "#DADADC", rim: "#F2F2F4", button: "#C9C9CC" },
+  glacier: { body: "#C6D6DF", rim: "#E3EDF2", button: "#B3C4CE" },
+  burgundy: { body: "#5B1E29", rim: "#7C3240", button: "#4C1822" },
+};
+
+const iphone18Pro = () =>
+  iphone({
+    id: "iphone-18-pro",
+    name: "iPhone 18 Pro",
+    body: { w: 71.9, h: 150.0 },
+    display: [1206, 2622],
+    islandPt: 110,
+    variants: IPHONE_18_PRO_VARIANTS,
+    defaultVariant: "black",
+    source: "apple.com/iphone-18-pro/specs (Sept 2026): 150.0 × 71.9 mm, 6.3-inch 2622 × 1206 at 460 ppi; smaller Dynamic Island, size estimated",
+  });
+
+const iphone18ProMax = () =>
+  iphone({
+    id: "iphone-18-pro-max",
+    name: "iPhone 18 Pro Max",
+    body: { w: 78.0, h: 163.4 },
+    display: [1320, 2868],
+    islandPt: 110,
+    variants: IPHONE_18_PRO_VARIANTS,
+    defaultVariant: "black",
+    source: "apple.com/iphone-18-pro/specs (Sept 2026): 163.4 × 78.0 mm, 6.9-inch 2868 × 1320 at 460 ppi; smaller Dynamic Island, size estimated",
+  });
+
+const iphoneAir = () =>
+  iphone({
+    id: "iphone-air",
+    name: "iPhone Air",
+    body: { w: 74.7, h: 156.2 },
+    display: [1260, 2736],
+    islandPt: 125,
+    variants: {
+      "space-black": { body: "#1D1D1F", rim: "#3A3A3D", button: "#2A2A2D" },
+      "cloud-white": { body: "#EDEDEB", rim: "#FAFAF8", button: "#DCDCDA" },
+      "light-gold": { body: "#E5D8BD", rim: "#F3EAD6", button: "#D4C6A8" },
+      "sky-blue": { body: "#BED2E4", rim: "#DCE8F2", button: "#A9BFD3" },
+    },
+    defaultVariant: "space-black",
+    source: "apple.com/iphone-air/specs (Sept 2026): 156.2 × 74.7 mm, 6.5-inch 2736 × 1260 at 460 ppi",
+  });
+
+export const CATALOG: readonly VectorFrame[] = [
+  pixel9Pro(),
+  pixel7(),
+  genericAndroid(),
+  iphone18Pro(),
+  iphone18ProMax(),
+  iphoneAir(),
+];
 
 export function findFrame(id: string): VectorFrame | undefined {
   return CATALOG.find((f) => f.id === id);
@@ -120,5 +233,10 @@ export function validateFrame(f: VectorFrame): string[] {
   if (Math.abs(s.w / s.h - aspect) > 0.01) errs.push(`screen aspect ${(s.w / s.h).toFixed(3)} != display aspect ${aspect.toFixed(3)}`);
   if (!(f.defaultVariant in f.variants)) errs.push("defaultVariant missing from variants");
   for (const btn of f.buttons) if (btn.from >= btn.to || btn.to > b.h) errs.push("button outside the body");
+  const c = f.cutout;
+  if (c && c.type !== "none") {
+    const [hw, hh] = c.type === "island" ? [c.w / 2, c.h / 2] : [c.d / 2, c.d / 2];
+    if (c.cx - hw < 0 || c.cx + hw > s.w || c.cy - hh < 0 || c.cy + hh > s.h) errs.push("cutout outside the screen");
+  }
   return errs;
 }

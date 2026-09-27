@@ -5,6 +5,18 @@ describe("catalog", () => {
   it.each(CATALOG.map((f) => [f.id, f] as const))("%s is valid", (_id, f) => {
     expect(validateFrame(f)).toEqual([]);
   });
+  it("includes the current iPhones with a Dynamic Island and buttons on both sides", () => {
+    for (const id of ["iphone-18-pro", "iphone-18-pro-max", "iphone-air"]) {
+      const f = CATALOG.find((x) => x.id === id)!;
+      expect(f.platform).toBe("ios");
+      expect(f.cutout?.type).toBe("island");
+      expect(new Set(f.buttons.map((b) => b.side))).toEqual(new Set(["left", "right"]));
+    }
+    // App Store 6.9-inch sizes, so simulator captures fit exactly.
+    expect(CATALOG.find((x) => x.id === "iphone-18-pro-max")!.display).toEqual([1320, 2868]);
+    expect(CATALOG.find((x) => x.id === "iphone-air")!.display).toEqual([1260, 2736]);
+  });
+
   it("has unique ids", () => {
     expect(new Set(CATALOG.map((f) => f.id)).size).toBe(CATALOG.length);
   });

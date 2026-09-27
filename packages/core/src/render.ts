@@ -427,6 +427,14 @@ function drawVectorFrame(env: DrawEnv, f: VectorFrame, layer: DeviceLayer, box: 
   drawFitted(ctx, shot, scr, "cover");
   ctx.restore();
 
+  if (f.cutout?.type === "island") {
+    // A pill of true black, like the Dynamic Island at rest.
+    const w = mm(f.cutout.w);
+    const h = mm(f.cutout.h);
+    ctx.fillStyle = "#000000";
+    roundRect(ctx, scr.x + mm(f.cutout.cx) - w / 2, scr.y + mm(f.cutout.cy) - h / 2, w, h, h / 2);
+    ctx.fill();
+  }
   if (f.cutout?.type === "punch-hole") {
     const cx = scr.x + mm(f.cutout.cx);
     const cy = scr.y + mm(f.cutout.cy);

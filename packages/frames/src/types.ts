@@ -14,7 +14,14 @@ export interface VectorFrame {
   display: [number, number];
   body: { w: number; h: number; radius: number; rim: number };
   screen: { x: number; y: number; w: number; h: number; radius: number };
-  cutout?: { type: "punch-hole"; cx: number; cy: number; d: number } | { type: "none" };
+  /**
+   * Camera cutout, centred at cx, cy (mm from the screen's top-left):
+   * a round punch hole, or a pill such as the Dynamic Island.
+   */
+  cutout?:
+    | { type: "punch-hole"; cx: number; cy: number; d: number }
+    | { type: "island"; cx: number; cy: number; w: number; h: number }
+    | { type: "none" };
   /** Buttons on the body edge; from/to are millimetres from the top of the body. */
   buttons: Array<{ side: "left" | "right"; from: number; to: number; depth: number }>;
   variants: Record<string, { body: string; rim: string; button: string }>;

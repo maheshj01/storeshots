@@ -58,20 +58,20 @@ node apps/cli/src/main.ts frames list
 node apps/cli/src/main.ts frames import pixel_10_pro examples/epoch
 ```
 
-| Path              | What's there                                                                                              |
-| ----------------- | --------------------------------------------------------------------------------------------------------- |
-| `packages/schema` | Project types (zod), validation with paths, reference checks, JSON Schema, migrations                     |
-| `packages/stores` | Play and App Store rules as data, image and set checks                                                    |
-| `packages/frames` | Vector frame catalog (Pixel 9 Pro, Pixel 7, generic Android) and the emulator skin importer               |
-| `packages/core`   | The renderer, text layout, deterministic shadows, RGB PNG encoder, export pipeline, and screen inspection |
-| `packages/ops`    | Edit operations and starter templates shared by the editor and the MCP server, plus the bundled OFL fonts |
-| `packages/node`   | The Node render host on `@napi-rs/canvas`, shared by the CLI and the MCP server                           |
-| `apps/cli`        | `storeshots` command; golden tests                                                                        |
-| `apps/web`        | The editor: React over the same core, IndexedDB storage, export worker, offline PWA                       |
-| `apps/mcp`        | MCP server: agents inspect, check and edit projects as text, and render only when needed                  |
-| `tools/parity`    | Browser render host and the parity page                                                                   |
-| `tools/goldens`   | Reference images at half size; `UPDATE_GOLDENS=1 pnpm test` regenerates                                   |
-| `examples/epoch`  | The dogfood fixture: 4 screens, en and de                                                                 |
+| Path              | What's there                                                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `packages/schema` | Project types (zod), validation with paths, reference checks, JSON Schema, migrations                                       |
+| `packages/stores` | Play and App Store rules as data, image and set checks                                                                      |
+| `packages/frames` | Vector frame catalog (Pixel 9 Pro, Pixel 7, generic Android, iPhone 18 Pro, 18 Pro Max, Air) and the emulator skin importer |
+| `packages/core`   | The renderer, text layout, deterministic shadows, RGB PNG encoder, export pipeline, and screen inspection                   |
+| `packages/ops`    | Edit operations and starter templates shared by the editor and the MCP server, plus the bundled OFL fonts                   |
+| `packages/node`   | The Node render host on `@napi-rs/canvas`, shared by the CLI and the MCP server                                             |
+| `apps/cli`        | `storeshots` command; golden tests                                                                                          |
+| `apps/web`        | The editor: React over the same core, IndexedDB storage, export worker, offline PWA                                         |
+| `apps/mcp`        | MCP server: agents inspect, check and edit projects as text, and render only when needed                                    |
+| `tools/parity`    | Browser render host and the parity page                                                                                     |
+| `tools/goldens`   | Reference images at half size; `UPDATE_GOLDENS=1 pnpm test` regenerates                                                     |
+| `examples/epoch`  | The dogfood fixture: 4 screens, en and de                                                                                   |
 
 ## Decisions still needed from you
 

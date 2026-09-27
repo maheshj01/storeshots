@@ -76,7 +76,9 @@ regenerates every screen in every locale, identically to the editor.
 ## Phase 3: iOS and breadth (about 4 to 6 weeks)
 
 - App Store targets (6.9 inch iPhone, 13 inch iPad), iPhone and iPad vector
-  frames, per-platform frames on one design.
+  frames, per-platform frames on one design. Started early: iPhone 18 Pro,
+  18 Pro Max and Air frames are in the catalog (September 2026). iPad
+  frames and the editor's App Store target setup are still to do.
 - Play tablet, Chromebook and feature graphic targets.
 - Panoramic backgrounds across screens, simple 3D tilt.
 - Desktop shell with Tauri **only if** a trigger in ADR 0001 has fired,
