@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Copy, GalleryHorizontal, GripVertical, LayoutGri
 import type { Screen, Target } from "@storeshots/schema";
 import { checkImage, checkSet, PLAY, APPSTORE } from "@storeshots/stores";
 import { useEditor, useTarget } from "../state/store.ts";
-import { addScreen, applyLayoutToAll, deleteScreen, duplicateScreen, fillWithCaptures, moveScreen, setCapture, storeCaptures } from "../state/actions.ts";
+import { addScreen, applyLayoutToAll, deleteScreen, renameScreen, duplicateScreen, fillWithCaptures, moveScreen, setCapture, storeCaptures } from "../state/actions.ts";
 import { useScreenPreview } from "../engine/preview.ts";
 import { Overlay } from "./Overlay.tsx";
 import { toast } from "./toast.ts";
@@ -541,11 +541,8 @@ function Sheet({ screen, index, count, width, height, target }: { screen: Screen
           <GripVertical size={13} aria-hidden />
         </span>
         <span className="n">{String(index + 1).padStart(2, "0")}</span>
-        <span className="id">{screen.id}</span>
+        <ScreenName id={screen.id} />
         <span className="grow" />
-        <span>
-          {target.size[0]} × {target.size[1]}
-        </span>
         {bad ? (
           <span className="bad" title={bad.message}>
             ✕
@@ -555,7 +552,7 @@ function Sheet({ screen, index, count, width, height, target }: { screen: Screen
             !
           </span>
         ) : (
-          <span className="ok" title={`Accepted as ${deviceLabel(target)}`}>
+          <span className="ok" title={`${target.size[0]} × ${target.size[1]}, accepted as ${deviceLabel(target)}`}>
             ✓
           </span>
         )}
@@ -587,5 +584,40 @@ function Sheet({ screen, index, count, width, height, target }: { screen: Screen
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * A screen's name under its sheet. Double-click to rename it: the name is
+ * how you (and an AI agent) refer to the screen, and names its exported file.
+ */
+function ScreenName({ id }: { id: string }) {
+  const [editing, setEditing] = useState(false);
+  if (!editing) {
+    return (
+      <span className="id" title={`${id} (double-click to rename)`} onDoubleClick={() => setEditing(true)}>
+        {id}
+      </span>
+    );
+  }
+  const finish = (value: string) => {
+    setEditing(false);
+    if (!value.trim() || value.trim() === id) return;
+    const error = renameScreen(id, value);
+    if (error) toast(error, true);
+  };
+  return (
+    <input
+      className="input mono rename"
+      defaultValue={id}
+      autoFocus
+      aria-label="Screen name"
+      onFocus={(e) => e.target.select()}
+      onBlur={(e) => finish(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") setEditing(false);
+      }}
+    />
   );
 }

@@ -284,3 +284,23 @@ export function renameThemeColor(from: string, to: string): string | null {
 export function deleteThemeColor(name: string) {
   S().edit("Remove theme colour", (d) => ops.deleteThemeColor(d as Project, name));
 }
+
+/** Renames a screen (its id becomes a slug of the name); returns an error message, or null. */
+export function renameScreen(id: string, name: string): string | null {
+  const doc = S().doc;
+  if (!doc) return null;
+  try {
+    ops.renameScreen(JSON.parse(JSON.stringify(doc)) as Project, id, name);
+  } catch (e) {
+    return (e as Error).message;
+  }
+  let next = id;
+  S().edit("Rename screen", (d) => void (next = ops.renameScreen(d as Project, id, name)));
+  // Keep whatever was selected on the renamed screen selected.
+  const { selection } = S();
+  const swap = (s: string | null) => (s === id ? next : s);
+  useEditor.setState({
+    selection: { ...selection, screen: swap(selection.screen), more: selection.more.map((r) => ({ ...r, screen: swap(r.screen)! })) },
+  });
+  return null;
+}

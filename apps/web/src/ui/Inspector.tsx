@@ -4,7 +4,7 @@ import type { Background, DeviceLayer, ImageLayer, Layer, ShapeLayer, TextLayer 
 import { CATALOG } from "@storeshots/frames";
 import { selectedLayerRefs, selectedScreenIds, useEditor, useSelectedScreen, useTarget } from "../state/store.ts";
 import {
-  addFont, addThemeColor, captureList, deleteThemeColor, renameThemeColor, deleteLayer, duplicateLayer, ensureFonts, layerText, moveLayerTo, setCapture, setLayerText, switchTemplate, updateBackground, updateLayer,
+  addFont, addThemeColor, captureList, deleteThemeColor, renameScreen, renameThemeColor, deleteLayer, duplicateLayer, ensureFonts, layerText, moveLayerTo, setCapture, setLayerText, switchTemplate, updateBackground, updateLayer,
 } from "../state/actions.ts";
 import { BUNDLED_FONTS, TEMPLATES, themeColorUses } from "@storeshots/ops";
 import { decodeImage } from "../engine/host.ts";
@@ -87,6 +87,7 @@ function ScreenInspector({ ids }: { ids: string[] }) {
   return (
     <>
       <Section title={one ? `Screen ${numbers[0]}` : `${screens.length} screens`}>
+        {one && <ScreenNameField id={screens[0]!.id} />}
         <p className="hint">{one ? "Shift-click other screens to edit them together." : `Screens ${numbers.join(", ")}. Changes apply to all of them.`}</p>
       </Section>
       <Section title="Background">
@@ -119,6 +120,17 @@ function ScreenInspector({ ids }: { ids: string[] }) {
         <p className="hint">Re-lays out {one ? "this screen" : "these screens"} only. Captions and screenshots stay.</p>
       </Section>
     </>
+  );
+}
+
+function ScreenNameField({ id }: { id: string }) {
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <label className="field">
+      <span>Name</span>
+      <TextInput className="input mono" aria-label="Screen name" value={id} onCommit={(v) => setError(v.trim() ? renameScreen(id, v) : null)} />
+      <small className={error ? "bad" : "hint"}>{error ?? "How you and your AI agent refer to this screen; also names its exported file."}</small>
+    </label>
   );
 }
 

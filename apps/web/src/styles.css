@@ -222,6 +222,9 @@ input[type="range"] { accent-color: var(--proof); width: 100%; }
 .slug { display: flex; align-items: center; gap: 8px; margin-top: 20px; font: 11px/1 var(--mono); color: var(--ink-2); white-space: nowrap; }
 .slug .n { color: var(--ink); font-weight: 500; }
 .slug .id { overflow: hidden; text-overflow: ellipsis; }
+.slug .id { cursor: text; }
+.slug .rename { height: 22px; min-width: 0; flex: 1; padding: 0 6px; font-size: 11px; }
+small.bad { color: var(--bad); font-size: 11px; }
 .slug .ok { color: var(--ok); }
 .slug .bad { color: var(--bad); }
 .slug .warn { color: var(--warn); }
@@ -342,6 +345,6 @@ input[type="range"] { accent-color: var(--proof); width: 100%; }
   .home h1 { font-size: 30px; }
   .home-inner { padding: 32px 16px 56px; }
   .topbar .hide-narrow { display: none; }
-  .slug .id, .table-foot input[type="range"] { display: none; }
+  .table-foot input[type="range"] { display: none; }
   .strip.row { gap: 40px; }
 }
