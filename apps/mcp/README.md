@@ -67,7 +67,7 @@ published.
 | `storeshots_add_layer` | Add text, device, shape or image, with initial properties. |
 | `storeshots_arrange_layer` | Remove, duplicate or restack a layer. |
 | `storeshots_align_layer` | Line up what a layer draws (text ink, phone body) with the canvas edges or centre. |
-| `storeshots_edit_screens` | Add, duplicate, remove or reorder screens; copy one screen's layout to all. |
+| `storeshots_edit_screens` | Add, duplicate, remove, rename or reorder screens; copy one screen's layout to all. |
 | `storeshots_set_background` | Solid or gradient background, on one screen, several, or all. |
 | `storeshots_set_theme` | Add, change, rename or remove theme colours; set theme fonts. Restyles every screen that uses them. |
 | `storeshots_apply_template` | Re-lay out every screen, or just some, with a starter template, keeping captions and screenshots. |
@@ -90,6 +90,14 @@ often each is used; `storeshots_set_theme` adds, changes, renames (every
 reference follows) and removes them (what used a removed colour keeps it
 as a plain `#hex`). The web editor shows the same colours under **Theme
 colours** when nothing is selected.
+
+### Screen names
+
+A screen's id is its name: people rename screens in the editor (double-click
+the name under a screen), so "change the headline on add-event" means the
+screen `add-event`. Renaming (`storeshots_edit_screens` with `rename`) turns
+a name into an id ("Add event" becomes `add-event`), moves the screen's
+captions with it, and names its exported files (`03_add-event.png`).
 
 ### Changing several things at once
 

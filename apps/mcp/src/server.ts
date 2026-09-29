@@ -29,7 +29,7 @@ const projectDir = z
   .string()
   .optional()
   .describe('Folder containing storeshots.json, or "live" for the project open in the storeshots editor in the browser. Defaults to what the server was started with.');
-const screenId = z.string().describe('Screen id, e.g. "home". storeshots_get_project lists them.');
+const screenId = z.string().describe('Screen id, e.g. "home". Screens are named by their id (people rename them in the editor), so a screen the user calls "home" is "home". storeshots_get_project lists them.');
 const layerIndex = z.number().int().min(0).describe("Layer number on the screen, 0 = bottom.");
 const locale = z.string().optional().describe("Locale for text, e.g. \"de\". Defaults to the project's default locale.");
 const target = z.string().optional().describe('Target id, e.g. "play-phone". Defaults to the first target.');
@@ -529,17 +529,18 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
     {
       title: "Add, copy, remove or reorder screens",
       description:
-        'action "add" inserts a screen after `screen` (default: last) copying its layout with placeholder captions and no screenshot; "duplicate" copies `screen` with its own captions; "remove" deletes it; "move_to" puts it at position `to` (0 = first in the listing); "apply_layout_to_all" copies its background and layers onto every other screen, keeping their text and screenshots (it overwrites their design, so use it only when asked to make every screen match).',
+        'action "add" inserts a screen after `screen` (default: last) copying its layout with placeholder captions and no screenshot; "duplicate" copies `screen` with its own captions; "remove" deletes it; "move_to" puts it at position `to` (0 = first in the listing); "rename" gives it a new id from `name` ("Add event" becomes "add-event"): the id is how the user and tools refer to the screen and names its exported files, so name screens after what they show when the user hasn\'t; "apply_layout_to_all" copies its background and layers onto every other screen, keeping their text and screenshots (it overwrites their design, so use it only when asked to make every screen match).',
       inputSchema: {
-        action: z.enum(["add", "duplicate", "remove", "move_to", "apply_layout_to_all"]),
+        action: z.enum(["add", "duplicate", "remove", "move_to", "rename", "apply_layout_to_all"]),
         screen: z.string().optional().describe("The screen to act on (for add: the one to insert after)"),
         to: z.number().int().min(0).optional().describe("For move_to"),
         new_id: z.string().regex(/^[a-z0-9][a-z0-9_-]*$/).optional().describe("For add: id of the new screen"),
+        name: z.string().optional().describe('For rename: the new name, e.g. "Add event" (becomes the id "add-event")'),
         project_dir: projectDir,
       },
       annotations: { ...write, destructiveHint: true },
     },
-    async ({ action, screen, to, new_id, project_dir }) => {
+    async ({ action, screen, to, new_id, name, project_dir }) => {
       try {
         const folder = folderFor(project_dir);
         const need = () => {
@@ -559,6 +560,10 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
               if (to === undefined) throw new Error("move_to needs `to`");
               ops.moveScreen(p, need(), to);
               return `moved ${need()} to position ${to}`;
+            case "rename": {
+              if (!name) throw new Error("rename needs `name`");
+              return `renamed ${need()} to ${ops.renameScreen(p, need(), name)}`;
+            }
             case "apply_layout_to_all":
               ops.applyLayoutToAll(p, need());
               return `applied the layout of ${need()} to every screen`;

@@ -260,6 +260,14 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
     expect((await call("storeshots_render_device", { screen: "progress", layer: 0 })).text).toMatch(/not a device/);
   });
 
+  it("renames a screen", async () => {
+    const r = await call("storeshots_edit_screens", { action: "rename", screen: "profile", name: "Your profile" });
+    expect(r.text).toContain("renamed profile to your-profile");
+    const doc = await saved();
+    expect(doc.screens.some((s: { id: string }) => s.id === "your-profile")).toBe(true);
+    expect((await call("storeshots_inspect_screen", { screen: "your-profile" })).error).toBe(false);
+  });
+
   it("applies a template, keeping captions", async () => {
     const r = await call("storeshots_apply_template", { template: "editorial", brand: "#0E9F6E" });
     expect(r.error).toBe(false);
