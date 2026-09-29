@@ -139,9 +139,15 @@ function AiButton({ onClick }: { onClick: () => void }) {
       type="button"
       className={`btn${connected ? " ai-on" : ""}`}
       onClick={onClick}
-      title={connected ? "Your AI agent is connected to this project" : "Edit these screenshots with Claude or another AI agent"}
+      title={
+        connected
+          ? "Your AI agent is connected to this project"
+          : status === "replaced"
+            ? "Your AI agent is connected to another storeshots tab"
+            : "Edit these screenshots with Claude or another AI agent"
+      }
     >
-      <Sparkles aria-hidden /> <span className="hide-narrow">{connected ? "AI connected" : "AI"}</span>
+      <Sparkles aria-hidden /> <span className="hide-narrow">{connected ? "AI connected" : status === "replaced" ? "AI in another tab" : "AI"}</span>
     </button>
   );
 }

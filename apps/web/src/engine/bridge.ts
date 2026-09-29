@@ -20,7 +20,15 @@ const URL = `ws://127.0.0.1:${BRIDGE_PORT}`;
 const OPT_IN = "storeshots.live-link";
 const VERSION = 1;
 
-export type BridgeStatus = "off" | "waiting" | "connected";
+/**
+ * "replaced": another storeshots tab took the link (the server serves one
+ * tab at a time). This tab then stays off until the person takes it back,
+ * so two open tabs don't keep taking the link from each other.
+ */
+export type BridgeStatus = "off" | "waiting" | "connected" | "replaced";
+
+/** Close code the server uses when a newer tab takes the link. */
+const REPLACED = 4000;
 
 export const useBridge = create<{ status: BridgeStatus; server: string | null; lastAgentEdit: number }>(() => ({
   status: "off",
@@ -154,8 +162,12 @@ function open() {
       );
     }
   };
-  ws.onclose = () => {
+  ws.onclose = (e) => {
     if (socket === ws) socket = null;
+    if (e.code === REPLACED) {
+      window.clearTimeout(retry);
+      return useBridge.setState({ status: "replaced", server: null });
+    }
     useBridge.setState({ status: optedIn() ? "waiting" : "off", server: null });
     schedule();
   };
@@ -163,7 +175,7 @@ function open() {
 }
 
 function schedule() {
-  if (!optedIn()) return;
+  if (!optedIn() || useBridge.getState().status === "replaced") return;
   window.clearTimeout(retry);
   retry = window.setTimeout(open, backoff);
   backoff = Math.min(backoff * 1.6, 8000);
@@ -182,8 +194,10 @@ export function resumeBridge() {
   if (optedIn()) open();
 }
 
+/** Connects this tab (taking the link from another tab, if one has it). */
 export function connectBridge() {
   setOptIn(true);
+  if (useBridge.getState().status === "replaced") useBridge.setState({ status: "off" });
   backoff = 1000;
   resumeBridge();
   open();

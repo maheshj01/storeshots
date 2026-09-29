@@ -110,6 +110,16 @@ function LiveStatus() {
       </div>
     );
   }
+  if (status === "replaced") {
+    return (
+      <div className="live">
+        <span className="dot waiting" /> Another storeshots tab is connected to your AI agent, so it works on that tab's project.
+        <button type="button" className="btn" onClick={connectBridge}>
+          <Plug aria-hidden /> Use this tab instead
+        </button>
+      </div>
+    );
+  }
   if (status === "waiting") {
     return (
       <div className="live">
