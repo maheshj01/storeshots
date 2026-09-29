@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, ChevronDown, ChevronsDown, ChevronsUp, ChevronUp, Copy, Trash2, AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ChevronDown, ChevronsDown, ChevronsUp, ChevronUp, Copy, Trash2, AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, Plus } from "lucide-react";
 import type { Background, DeviceLayer, ImageLayer, Layer, ShapeLayer, TextLayer } from "@storeshots/schema";
 import { CATALOG } from "@storeshots/frames";
 import { selectedLayerRefs, selectedScreenIds, useEditor, useSelectedScreen, useTarget } from "../state/store.ts";
 import {
-  addFont, captureList, deleteLayer, duplicateLayer, ensureFonts, layerText, moveLayerTo, setCapture, setLayerText, switchTemplate, updateBackground, updateLayer,
+  addFont, addThemeColor, captureList, deleteThemeColor, renameThemeColor, deleteLayer, duplicateLayer, ensureFonts, layerText, moveLayerTo, setCapture, setLayerText, switchTemplate, updateBackground, updateLayer,
 } from "../state/actions.ts";
-import { BUNDLED_FONTS, TEMPLATES } from "@storeshots/ops";
+import { BUNDLED_FONTS, TEMPLATES, themeColorUses } from "@storeshots/ops";
 import { decodeImage } from "../engine/host.ts";
-import { ColorField, NumberField, Section, Segmented, Toggle } from "./fields.tsx";
+import { ColorField, NumberField, Section, Segmented, TextInput, Toggle, useResolvedColor } from "./fields.tsx";
 
 /** A value shared by every selected item, or `mixed` (showing the primary's) when they differ. */
 function common<T, V>(items: T[], get: (t: T) => V): { value: V; mixed: boolean } {
@@ -141,25 +141,69 @@ function GradientFields({ bgs }: { bgs: Array<Extract<Background, { type: "linea
   );
 }
 
+/**
+ * The project's theme colours: its design system. Backgrounds and layers
+ * link to them by name (shown as $name in storeshots.json), so changing one
+ * here restyles everything that uses it.
+ */
 function ThemeColors() {
   const colors = useEditor((s) => s.doc!.theme.colors);
+  const doc = useEditor((s) => s.doc!);
   return (
-    <Section title="Theme colours">
-      <p className="hint">Layers using a theme colour update everywhere when you change it here.</p>
+    <Section
+      title="Theme colours"
+      action={
+        <button type="button" className="btn ghost icon" title="Add a theme colour" aria-label="Add a theme colour" onClick={() => addThemeColor()}>
+          <Plus aria-hidden />
+        </button>
+      }
+    >
+      <p className="hint">Your design system's named colours. Backgrounds and layers can use them by name; change one here and everything using it updates.</p>
       {Object.entries(colors).map(([name, value]) => (
-        <ColorField
-          key={name}
-          label={name}
-          value={value}
-          onChange={(v) => {
-            if (v === `$${name}`) return;
-            useEditor.getState().edit(`Theme colour ${name}`, (d) => {
-              d.theme.colors[name] = v;
-            }, `theme:${name}`);
-          }}
-        />
+        <ThemeColorRow key={name} name={name} value={value} uses={themeColorUses(doc, name)} />
       ))}
     </Section>
+  );
+}
+
+function ThemeColorRow({ name, value, uses }: { name: string; value: string; uses: number }) {
+  const resolved = useResolvedColor(value);
+  const [error, setError] = useState<string | null>(null);
+  const set = (v: string) => {
+    if (v === `$${name}`) return;
+    useEditor.getState().edit(`Theme colour ${name}`, (d) => {
+      d.theme.colors[name] = v;
+    }, `theme:${name}`);
+  };
+  return (
+    <div className="theme-row">
+      <label className="swatch" title="Pick a colour">
+        <i style={{ background: resolved }} />
+        <input type="color" value={resolved.slice(0, 7)} onChange={(e) => set(e.target.value.toUpperCase() + (resolved.length === 9 ? resolved.slice(7) : ""))} />
+      </label>
+      <TextInput
+        aria-label={`Name of the theme colour ${name}`}
+        value={name}
+        onCommit={(v) => setError(renameThemeColor(name, v.trim()))}
+      />
+      <TextInput
+        className="input mono"
+        aria-label={`${name} hex`}
+        value={value}
+        onCommit={(v) => /^(#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})|\$[A-Za-z][\w-]*)$/i.test(v.trim()) && set(v.trim())}
+      />
+      <button
+        type="button"
+        className="btn ghost icon danger"
+        title={uses ? `Remove (the ${uses} ${uses === 1 ? "place" : "places"} using it keep this colour, unlinked)` : "Remove"}
+        aria-label={`Remove the theme colour ${name}`}
+        disabled={name === "brand"}
+        onClick={() => deleteThemeColor(name)}
+      >
+        <Trash2 aria-hidden />
+      </button>
+      {error ? <small className="bad">{error}</small> : <small>{uses ? `Used in ${uses} ${uses === 1 ? "place" : "places"}` : "Not used yet"}</small>}
+    </div>
   );
 }
 

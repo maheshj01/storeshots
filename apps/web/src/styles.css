@@ -80,6 +80,17 @@ textarea.input { height: auto; min-height: 64px; padding: 6px 8px; resize: verti
   background-size: 8px 8px; background-position: 0 0, 4px 4px; }
 .swatch i { position: absolute; inset: 0; }
 .swatch input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.linked { display: flex; align-items: center; gap: 6px; min-width: 0; height: 30px; padding: 0 2px 0 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--panel-2); font-size: 12px; }
+.linked svg { width: 13px; height: 13px; flex: none; color: var(--proof); }
+.linked b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linked .mono { font: 11px var(--mono); color: var(--ink-3); flex: 1; }
+.linked .btn { height: 24px; padding: 0 6px; font-size: 11px; }
+.chip.link { border-style: dashed; color: var(--ink-3); padding: 0 8px; }
+.chip.link:hover { color: var(--ink); border-color: var(--ink-3); }
+.theme-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) 84px 26px; gap: 6px; align-items: center; }
+.theme-row .input { min-width: 0; }
+.theme-row small { grid-column: 2 / -1; margin-top: -2px; font-size: 11px; color: var(--ink-3); }
+.theme-row small.bad { color: var(--bad); }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 6px 0 3px; border: 1px solid var(--rule); border-radius: 11px; background: #fff; cursor: pointer; font-size: 11px; color: var(--ink-2); }
 .chip i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #0002; }

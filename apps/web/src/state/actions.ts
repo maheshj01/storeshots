@@ -258,3 +258,29 @@ export async function addFont(file: File): Promise<string | null> {
   await addProjectAssets([[path, file]]);
   return path;
 }
+
+// Theme colours ------------------------------------------------------------
+
+export function addThemeColor(value = "#888888"): string {
+  let name = "";
+  S().edit("Add theme colour", (d) => {
+    name = ops.freshThemeColorName(d as Project);
+    d.theme.colors[name] = value;
+  });
+  return name;
+}
+
+/** Renames a theme colour everywhere; returns an error message if the name can't be used. */
+export function renameThemeColor(from: string, to: string): string | null {
+  try {
+    ops.renameThemeColor(structuredClone(S().doc!) as Project, from, to);
+  } catch (e) {
+    return (e as Error).message;
+  }
+  S().edit("Rename theme colour", (d) => ops.renameThemeColor(d as Project, from, to));
+  return null;
+}
+
+export function deleteThemeColor(name: string) {
+  S().edit("Remove theme colour", (d) => ops.deleteThemeColor(d as Project, name));
+}

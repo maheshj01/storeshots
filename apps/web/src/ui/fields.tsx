@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link2 } from "lucide-react";
 import { useEditor } from "../state/store.ts";
 
 /** A text input that commits on blur or Enter, so typing isn't one undo step per key. */
@@ -143,21 +144,28 @@ export function useResolvedColor(value: string): string {
   return v;
 }
 
+/** Opens the project's theme colours in the inspector (by selecting nothing). */
+export function showThemeColors() {
+  useEditor.getState().select({ screen: null, layer: null });
+}
+
 /**
- * A colour: a swatch that opens the system picker, a hex field, and chips
- * for theme colours. Choosing a chip stores the `$name` reference, so later
- * theme edits flow through.
+ * A colour: a swatch that opens the system picker, and either a hex field
+ * or, when it uses a theme colour, that colour's name. Theme colours are the
+ * project's named colours (its design system): choosing one from the chips
+ * links to it, so changing the theme colour later changes this too.
  */
 export function ColorField(props: { label: string; value: string; onChange: (v: string) => void; mixed?: boolean }) {
   const colors = useEditor((s) => s.doc?.theme.colors ?? {});
   const resolved = useResolvedColor(props.value);
   const hex6 = resolved.slice(0, 7);
   const alpha = resolved.length === 9 ? resolved.slice(7) : "";
+  const linked = !props.mixed && props.value.startsWith("$") ? props.value.slice(1) : null;
   return (
     <div className="field">
       <span>{props.label}</span>
       <div className="color">
-        <label className="swatch" title="Pick a colour">
+        <label className="swatch" title={linked ? `Pick a colour (stops using the theme colour ${linked})` : "Pick a colour"}>
           <i style={{ background: resolved }} />
           <input
             type="color"
@@ -165,25 +173,39 @@ export function ColorField(props: { label: string; value: string; onChange: (v: 
             onChange={(e) => props.onChange(e.target.value.toUpperCase() + alpha)}
           />
         </label>
-        <TextInput
-          className="input mono"
-          aria-label={`${props.label} hex`}
-          value={props.mixed ? "" : props.value}
-          placeholder={props.mixed ? "Mixed" : undefined}
-          onCommit={(v) => {
-            const t = v.trim();
-            if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(t) || (t.startsWith("$") && t.slice(1) in colors)) props.onChange(t);
-          }}
-        />
+        {linked ? (
+          <div className="linked" title={`Uses the theme colour "${linked}". Change it under Theme colours and everything using it updates.`}>
+            <Link2 aria-hidden />
+            <b>{linked}</b>
+            <span className="mono">{resolved}</span>
+            <button type="button" className="btn ghost" onClick={() => props.onChange(resolved)} title="Use this colour as a plain value, not linked to the theme">
+              Unlink
+            </button>
+          </div>
+        ) : (
+          <TextInput
+            className="input mono"
+            aria-label={`${props.label} hex`}
+            value={props.mixed ? "" : props.value}
+            placeholder={props.mixed ? "Mixed" : undefined}
+            onCommit={(v) => {
+              const t = v.trim();
+              if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(t) || (t.startsWith("$") && t.slice(1) in colors)) props.onChange(t);
+            }}
+          />
+        )}
       </div>
       {Object.keys(colors).length > 0 && (
-        <div className="chips">
+        <div className="chips" aria-label="Theme colours">
           {Object.entries(colors).map(([name, c]) => (
-            <button key={name} type="button" className="chip" aria-pressed={!props.mixed && props.value === `$${name}`} onClick={() => props.onChange(`$${name}`)} title={`${name} ${c}`}>
+            <button key={name} type="button" className="chip" aria-pressed={linked === name} onClick={() => props.onChange(`$${name}`)} title={`Use the theme colour ${name}`}>
               <ThemeDot value={c} />
               {name}
             </button>
           ))}
+          <button type="button" className="chip link" onClick={showThemeColors} title="Add, rename or change the project's theme colours">
+            Edit theme…
+          </button>
         </div>
       )}
     </div>
