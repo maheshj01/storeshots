@@ -7,7 +7,7 @@ import { createCanvas } from "@napi-rs/canvas";
 import type { Layer, Project, Screen } from "@storeshots/schema";
 import { CATALOG, findFrame } from "@storeshots/frames";
 import { checkImage, checkSet } from "@storeshots/stores";
-import { exportProject, inspectScreen, outputPath, renderScreen, type ScreenInspection } from "@storeshots/core";
+import { exportProject, inspectScreen, outputPath, renderDevice, renderScreen, type ScreenInspection } from "@storeshots/core";
 import * as ops from "@storeshots/ops";
 import { BUNDLED_FONTS_DIR } from "@storeshots/ops/fonts-dir";
 import { importAndroidSkin, importIosFrame } from "@storeshots/node";
@@ -848,6 +848,44 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
           }
         }
         return { content };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "storeshots_render_device",
+    {
+      title: "Render one framed screenshot",
+      description:
+        "Saves one device layer on its own as a transparent PNG: the phone with its screenshot, upright, with the screen at the screenshot's own resolution. For websites, docs or social posts, not for the store listing (use storeshots_render for that). Written to framed/ in the project's output folder.",
+      inputSchema: {
+        screen: screenId,
+        layer: layerIndex.describe("The device layer's number, 0 = bottom"),
+        shadow: z.boolean().optional().describe("Draw the drop shadow; default: the layer's own setting"),
+        file: z.string().regex(/^[\w.-]+\.png$/).optional().describe('File name, e.g. "home-framed.png"; default from the screenshot\'s name'),
+        locale,
+        target,
+        project_dir: projectDir,
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ screen, layer, shadow, file, locale: loc, target: tgt, project_dir }) => {
+      try {
+        const folder = folderFor(project_dir);
+        const p = await folder.load();
+        const l = ops.getLayer(p, screen, layer);
+        const lang = pickLocale(p, loc);
+        const { canvas } = await renderDevice(p, { screen, layer, target: pickTarget(p, tgt).id, locale: lang, shadow }, folder.cache());
+        const out = createCanvas(canvas.width, canvas.height);
+        out.getContext("2d").drawImage(canvas as never, 0, 0);
+        const base = l.type === "device" && l.capture ? l.capture.replace(/\.[a-z]+$/i, "") : `${screen}-device`;
+        const name = file ?? `${base}-framed${lang === p.locales.default ? "" : `-${lang}`}.png`;
+        const path = join(folder.outputDir(p), "framed", name);
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(path, await out.encode("png"));
+        return ok(`saved ${folder.isLive ? path : path.slice(folder.dir.length + 1)} ${canvas.width}×${canvas.height}, transparent background`);
       } catch (e) {
         return fail(e);
       }

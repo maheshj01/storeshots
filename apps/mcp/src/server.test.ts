@@ -52,6 +52,7 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
       "storeshots_import_frame",
       "storeshots_inspect_screen",
       "storeshots_render",
+      "storeshots_render_device",
       "storeshots_set_background",
       "storeshots_set_theme",
       "storeshots_update_layer",
@@ -246,6 +247,17 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
     const byId = (d: { screens: Array<{ id: string }> }, id: string) => d.screens.find((s) => s.id === id);
     expect(byId(doc, "progress")).toEqual(byId(before, "progress"));
     expect(byId(doc, "timeline")).not.toEqual(byId(before, "timeline"));
+  });
+
+  it("saves one framed screenshot with a transparent background", async () => {
+    const r = await call("storeshots_render_device", { screen: "progress", layer: 2 });
+    expect(r.error).toBe(false);
+    const m = r.text.match(/saved (\S+) (\d+)×(\d+)/)!;
+    const png = await readFile(join(dir, m[1]!));
+    expect(png.subarray(1, 4).toString()).toBe("PNG");
+    expect(png[25]).toBe(6); // colour type 6: RGBA
+    expect(+m[2]!).toBeGreaterThan(1000);
+    expect((await call("storeshots_render_device", { screen: "progress", layer: 0 })).text).toMatch(/not a device/);
   });
 
   it("applies a template, keeping captions", async () => {
