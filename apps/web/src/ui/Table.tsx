@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Copy, GripVertical, Plus, Trash2, CircleCheck, CircleAlert, TriangleAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, Copy, GalleryHorizontal, GripVertical, LayoutGrid, Plus, Trash2, CircleCheck, CircleAlert, TriangleAlert } from "lucide-react";
 import type { Screen, Target } from "@storeshots/schema";
 import { checkImage, checkSet, PLAY, APPSTORE } from "@storeshots/stores";
 import { useEditor, useTarget } from "../state/store.ts";
@@ -9,6 +9,45 @@ import { Overlay } from "./Overlay.tsx";
 
 /** Display height of a sheet at 100% zoom, in CSS px. */
 const BASE_HEIGHT = 560;
+
+/** Grid spacing, in CSS px (unscaled): kept in step with .strip.grid in styles.css. */
+const COL_GAP = 56;
+const ROW_GAP = 48;
+const MARGIN = 48;
+/** The number, size and tools under each screen, which don't scale with zoom. */
+const SLUG = 80;
+
+type Layout = "grid" | "row";
+const LAYOUT_KEY = "storeshots.table-layout";
+
+function savedLayout(): Layout {
+  try {
+    return localStorage.getItem(LAYOUT_KEY) === "row" ? "row" : "grid";
+  } catch {
+    return "grid";
+  }
+}
+
+/** How many screens of width `w` fit side by side in a view `viewW` wide. */
+export function gridColumns(viewW: number, w: number, count: number): number {
+  return Math.max(1, Math.min(count, Math.floor((viewW - 2 * MARGIN + COL_GAP) / (w + COL_GAP))));
+}
+
+/**
+ * The largest zoom at which `count` screens fit the view as a grid, trying
+ * every column count. Too many screens to fit at the smallest zoom just
+ * scroll.
+ */
+export function gridFitZoom(viewW: number, viewH: number, aspect: number, count: number): number {
+  let best = 0;
+  for (let c = 1; c <= Math.max(1, count); c++) {
+    const rows = Math.ceil(count / c);
+    const zw = (viewW - 2 * MARGIN - (c - 1) * COL_GAP) / (c * BASE_HEIGHT * aspect);
+    const zh = (viewH - MARGIN - 40 - (rows - 1) * ROW_GAP - rows * SLUG) / (rows * BASE_HEIGHT);
+    best = Math.max(best, Math.min(zw, zh));
+  }
+  return Math.min(3, Math.max(0.25, best));
+}
 
 export function deviceLabel(t: Target): string {
   const cls =
@@ -115,6 +154,23 @@ export function Table() {
   const h = Math.round(BASE_HEIGHT * zoom);
   const w = Math.round((h * target.size[0]) / target.size[1]);
 
+  /**
+   * Screens wrap into a grid as wide as the window, so a whole listing can
+   * be browsed at a glance; the row keeps them in one line, in store order.
+   */
+  const [layout, setLayoutState] = useState<Layout>(savedLayout);
+  const [viewW, setViewW] = useState(() => Math.max(400, window.innerWidth - 580));
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    setViewW(el.clientWidth);
+    const ro = new ResizeObserver(() => setViewW(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // The add-screen tile counts as one more cell.
+  const cols = layout === "grid" ? gridColumns(viewW, w, doc.screens.length + 1) : doc.screens.length + 1;
+
   const setIssues = useMemo(
     () => checkSet({ store: target.store, device: target.device, images: doc.screens.map(() => ({ width: target.size[0], height: target.size[1] })) }),
     [doc.screens.length, target],
@@ -147,7 +203,9 @@ export function Table() {
     let best = Infinity;
     items.forEach((it, i) => {
       const r = it.getBoundingClientRect();
-      const d = px < r.left ? r.left - px : px > r.right ? px - r.right : 0;
+      const dx = px < r.left ? r.left - px : px > r.right ? px - r.right : 0;
+      const dy = py < r.top ? r.top - py : py > r.bottom ? py - r.bottom : 0;
+      const d = Math.hypot(dx, dy);
       if (d < best) [best, index] = [d, i];
     });
     if (index >= 0) {
@@ -222,15 +280,16 @@ export function Table() {
     if (!el || !item) return;
     const view = el.getBoundingClientRect();
     const r = item.getBoundingClientRect();
-    const all = targets(el);
-    const first = all[0]!.getBoundingClientRect();
-    const lastR = all[all.length - 1]!.getBoundingClientRect();
-    const stripW = lastR.right - first.left;
-    const left = stripW + 128 < view.width ? view.left + (view.width - stripW) / 2 + (r.left - first.left) : view.left + 64;
-    el.scrollLeft += r.left - left;
-    el.scrollTop += r.top - (view.top + 56);
+    const rects = targets(el).map((t) => t.getBoundingClientRect());
+    const left = Math.min(...rects.map((b) => b.left));
+    const stripW = Math.max(...rects.map((b) => b.right)) - left;
+    const x = stripW + 2 * MARGIN <= view.width ? view.left + (view.width - stripW) / 2 + (r.left - left) : view.left + MARGIN;
+    el.scrollLeft += r.left - x;
+    el.scrollTop += r.top - (view.top + MARGIN);
   };
+  // Homing waits for the layout it's measured against (zoom and columns).
   const homeNext = useRef<number | null>(null);
+  const [homeTick, setHomeTick] = useState(0);
 
   useLayoutEffect(() => {
     const a = anchor.current;
@@ -246,21 +305,40 @@ export function Table() {
     if (!r) return;
     el.scrollLeft += r.left + a.fx * r.width - a.x;
     el.scrollTop += r.top + a.fy * r.height - a.y;
-  }, [zoom]);
+  }, [zoom, cols, homeTick]);
 
-  /** Zooms so a screen fills the window height, then brings the selected screen into view. */
-  const fit = () => {
+  /**
+   * In the grid, zooms so every screen fits the window and shows them all.
+   * In the row, zooms so a screen fills the window height and brings the
+   * selected screen into view.
+   */
+  const fit = (mode: Layout = layout) => {
     const el = scroller.current;
     if (!el) return;
     const { doc, selection, zoom: current } = useEditor.getState();
-    const index = Math.max(0, doc?.screens.findIndex((s) => s.id === selection.screen) ?? 0);
-    // Room for the top margin, the slug and the screen tools below each screen.
-    const next = Math.min(3, Math.max(0.25, (el.clientHeight - 56 - 110) / BASE_HEIGHT));
-    if (Math.abs(next - current) < 1e-6) return home(index);
-    homeNext.current = index;
-    zoomAt(next);
+    if (!doc) return;
+    const index = Math.max(0, doc.screens.findIndex((s) => s.id === selection.screen));
+    const next =
+      mode === "grid"
+        ? gridFitZoom(el.clientWidth, el.clientHeight, target.size[0] / target.size[1], doc.screens.length)
+        : Math.min(3, Math.max(0.25, (el.clientHeight - 56 - 110) / BASE_HEIGHT));
+    // A grid that fits is shown from its first screen; otherwise, the selected one.
+    homeNext.current = mode === "grid" && next > 0.25 ? 0 : index;
+    if (Math.abs(next - current) < 1e-6) setHomeTick((t) => t + 1);
+    else zoomAt(next);
   };
-  useLayoutEffect(fit, [projectId]);
+  useLayoutEffect(() => fit(), [projectId]);
+
+  const setLayout = (next: Layout) => {
+    if (next === layout) return;
+    try {
+      localStorage.setItem(LAYOUT_KEY, next);
+    } catch {
+      // private mode: the choice lasts for this visit
+    }
+    setLayoutState(next);
+    fit(next);
+  };
 
   // The wheel listener is attached once; it calls the latest functions.
   const zoomAtRef = useRef(zoomAt);
@@ -312,7 +390,11 @@ export function Table() {
         await fillWithCaptures(files);
       }}
     >
-      <div className="strip" ref={strip}>
+      <div
+        className={`strip ${layout}`}
+        ref={strip}
+        style={layout === "grid" ? { gridTemplateColumns: `repeat(${cols}, ${w}px)` } : undefined}
+      >
         {doc.screens.map((screen, i) => (
           <Sheet key={screen.id} screen={screen} index={i} count={doc.screens.length} width={w} height={h} target={target} />
         ))}
@@ -345,7 +427,21 @@ export function Table() {
                 : "valid for the App Store"}
         </span>
         <span className="grow" />
-        <button type="button" className="btn ghost" style={{ height: 24 }} onClick={fit} title="Fit screens to the window height">
+        <span className="seg compact" role="group" aria-label="Arrange screens">
+          <button type="button" aria-pressed={layout === "grid"} title="Grid: wrap screens to the window" onClick={() => setLayout("grid")}>
+            <LayoutGrid aria-hidden />
+          </button>
+          <button type="button" aria-pressed={layout === "row"} title="Row: screens in one line, as in the store" onClick={() => setLayout("row")}>
+            <GalleryHorizontal aria-hidden />
+          </button>
+        </span>
+        <button
+          type="button"
+          className="btn ghost"
+          style={{ height: 24 }}
+          onClick={() => fit()}
+          title={layout === "grid" ? "Fit all screens in the window" : "Fit screens to the window height"}
+        >
           Fit
         </button>
         <label className="row" title="Zoom (Ctrl or ⌘ + scroll). Hold Space and drag to pan.">

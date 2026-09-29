@@ -63,6 +63,8 @@ textarea.input { height: auto; min-height: 64px; padding: 6px 8px; resize: verti
 .seg button { height: 24px; min-width: 28px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .seg button svg { width: 14px; height: 14px; }
 .seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.seg.compact { padding: 1px; }
+.seg.compact button { height: 20px; min-width: 24px; padding: 0 5px; }
 .seg.stack { display: grid; grid-template-columns: repeat(4, 1fr); }
 .seg.stack button { gap: 3px; font-size: 11px; padding: 0 4px; }
 .seg.stack button:hover:not(:disabled) { background: var(--panel-2); }
@@ -175,6 +177,9 @@ input[type="range"] { accent-color: var(--proof); width: 100%; }
  * Zooming relies on this to keep the point under the cursor still.
  */
 .strip { display: flex; align-items: flex-start; gap: 56px; padding: 100vh 100vw; width: max-content; }
+/* Grid: columns are set inline to fit the window; gaps match COL_GAP and ROW_GAP in Table.tsx. */
+.strip.grid { display: grid; gap: 48px 56px; align-items: start; }
+.strip.grid .add-sheet { justify-self: start; }
 .sheet { position: relative; flex: none; }
 .sheet canvas.preview { display: block; width: 100%; height: 100%; background: #fff; box-shadow: var(--shadow); }
 .sheet .stage { position: relative; }
@@ -320,5 +325,5 @@ input[type="range"] { accent-color: var(--proof); width: 100%; }
   .home-inner { padding: 32px 16px 56px; }
   .topbar .hide-narrow { display: none; }
   .slug .id, .table-foot input[type="range"] { display: none; }
-  .strip { gap: 40px; }
+  .strip.row { gap: 40px; }
 }
