@@ -105,12 +105,17 @@ input[type="range"] { accent-color: var(--proof); width: 100%; }
 .sync svg { width: 15px; height: 15px; }
 .sync.bad { color: var(--bad); }
 
-.workspace { display: grid; grid-template-columns: 248px 1fr 288px; min-height: 0; }
+.workspace { display: grid; grid-template-columns: auto 1fr 288px; min-height: 0; }
 .panel { background: var(--panel); min-height: 0; overflow: auto; }
-.panel.left { border-right: 1px solid var(--rule); display: flex; flex-direction: column; }
+.panel.left { width: 248px; border-right: 1px solid var(--rule); display: flex; flex-direction: column; }
+.panel.left.collapsed { width: 44px; align-items: center; gap: 4px; padding: 8px 0; overflow: hidden; }
+.panel.left.collapsed .rail-rule { width: 24px; height: 1px; background: var(--rule); margin: 4px 0; }
 .panel.right { border-left: 1px solid var(--rule); }
 .tabs { display: flex; gap: 2px; padding: 8px 8px 0; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--panel); z-index: 1; }
 .tabs button { flex: 1; height: 30px; border: 0; background: none; border-bottom: 2px solid transparent; cursor: pointer; color: var(--ink-3); font-weight: 500; }
+.tabs button.collapse { flex: none; width: 30px; display: inline-flex; align-items: center; justify-content: center; }
+.tabs button.collapse svg { width: 15px; height: 15px; }
+.tabs button.collapse:hover { color: var(--ink); }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--proof); }
 .section { padding: 12px; border-bottom: 1px solid var(--rule); display: grid; gap: 10px; }
 .section h3 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); display: flex; align-items: center; justify-content: space-between; }

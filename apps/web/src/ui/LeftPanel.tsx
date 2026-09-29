@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, Smartphone, Square, Type, Upload } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, Layers3, PanelLeftClose, PanelLeftOpen, Smartphone, Square, Type, Upload } from "lucide-react";
 import type { Project } from "@storeshots/schema";
 import { CATALOG, type VectorFrame } from "@storeshots/frames";
 import { frameAspect } from "@storeshots/core";
@@ -12,16 +12,89 @@ import { decodeImage } from "../engine/host.ts";
 
 type Tab = "layers" | "screenshots" | "frames";
 
+const TABS: Array<{ id: Tab; label: string; icon: typeof Type }> = [
+  { id: "layers", label: "Layers", icon: Layers3 },
+  { id: "screenshots", label: "Screenshots", icon: ImageIcon },
+  { id: "frames", label: "Frames", icon: Smartphone },
+];
+
+const COLLAPSED_KEY = "storeshots.left-collapsed";
+
+function savedCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Layers, screenshots and frames. It folds down to a strip of icons (the
+ * button in its header, or ⌘\) to give the table more room; an icon opens
+ * the panel on that tab.
+ */
 export function LeftPanel() {
   const [tab, setTab] = useState<Tab>("layers");
+  const [collapsed, setCollapsedState] = useState(savedCollapsed);
+  const setCollapsed = (next: boolean) => {
+    try {
+      if (next) localStorage.setItem(COLLAPSED_KEY, "1");
+      else localStorage.removeItem(COLLAPSED_KEY);
+    } catch {
+      // private mode: the choice lasts for this visit
+    }
+    setCollapsedState(next);
+  };
+  const toggle = useRef(() => {});
+  toggle.current = () => setCollapsed(!collapsed);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.code === "Backslash" || e.key === "\\")) {
+        e.preventDefault();
+        toggle.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  if (collapsed) {
+    return (
+      <aside className="panel left collapsed" aria-label="Layers, screenshots and frames (collapsed)">
+        <button type="button" className="btn ghost icon" title="Show panel (⌘\)" aria-label="Show panel" onClick={() => setCollapsed(false)}>
+          <PanelLeftOpen aria-hidden />
+        </button>
+        <span className="rail-rule" />
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            className="btn ghost icon"
+            title={label}
+            aria-label={`Show ${label.toLowerCase()}`}
+            onClick={() => {
+              setTab(id);
+              setCollapsed(false);
+            }}
+          >
+            <Icon aria-hidden />
+          </button>
+        ))}
+      </aside>
+    );
+  }
+
   return (
     <aside className="panel left" aria-label="Layers, screenshots and frames">
       <div className="tabs" role="tablist">
-        {(["layers", "screenshots", "frames"] as const).map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-            {t[0]!.toUpperCase() + t.slice(1)}
+        {TABS.map(({ id, label }) => (
+          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+            {label}
           </button>
         ))}
+        <button type="button" className="collapse" title="Hide panel (⌘\)" aria-label="Hide panel" onClick={() => setCollapsed(true)}>
+          <PanelLeftClose aria-hidden />
+        </button>
       </div>
       {tab === "layers" && <Layers />}
       {tab === "screenshots" && <Screenshots />}
