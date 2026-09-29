@@ -60,6 +60,45 @@ export function addScreen(p: Project, afterId?: string, id = freshScreenId(p)): 
   return id;
 }
 
+/** A screen id made from a name someone typed: "Add event" becomes "add-event". */
+export function screenIdFrom(name: string): string {
+  return name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+}
+
+/**
+ * Renames a screen: its id becomes a slug of `name`, which is how people,
+ * agents and exported file names (03_add-event.png) refer to it. Captions
+ * keyed by the old id move with it. Returns the new id.
+ */
+export function renameScreen(p: Project, id: string, name: string): string {
+  const screen = getScreen(p, id);
+  const next = screenIdFrom(name);
+  if (!next) throw new Error(`"${name}" has no letters or digits to name a screen with`);
+  if (next === id) return id;
+  if (p.screens.some((s) => s.id === next)) throw new Error(`there's already a screen called "${next}"`);
+  // Caption keys "<id>.<part>" follow the screen, unless the new key is taken.
+  const prefix = `${id}.`;
+  for (const l of screen.layers) {
+    if (l.type !== "text" || !l.text.startsWith(`@caption.${prefix}`)) continue;
+    const key = l.text.slice("@caption.".length);
+    const moved = `${next}.${key.slice(prefix.length)}`;
+    if (moved in p.captions || !(key in p.captions)) continue;
+    p.captions[moved] = p.captions[key]!;
+    // Another screen may share the caption (after copying a layout); keep it for them.
+    const shared = p.screens.some((s) => s !== screen && s.layers.some((x) => x.type === "text" && x.text === l.text));
+    if (!shared) delete p.captions[key];
+    l.text = `@caption.${moved}`;
+  }
+  screen.id = next;
+  return next;
+}
+
 /** Copies a screen, with its own copies of the captions. Returns the new id. */
 export function duplicateScreen(p: Project, id: string): string {
   const src = getScreen(p, id);

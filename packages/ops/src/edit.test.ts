@@ -41,3 +41,26 @@ describe("theme colours", async () => {
     expect(JSON.stringify(doc.screens)).toContain(`"${value}"`);
   });
 });
+
+describe("renameScreen", async () => {
+  const { newProject } = await import("./templates.ts");
+  const { renameScreen, screenIdFrom } = await import("./edit.ts");
+
+  it("makes an id from a name", () => {
+    expect(screenIdFrom("Add event!")).toBe("add-event");
+    expect(screenIdFrom("  Café  Menü ")).toBe("cafe-menu");
+  });
+
+  it("renames a screen and moves its captions", () => {
+    const { doc } = newProject("App", "headline", "#2F6FEB");
+    const title = doc.captions["screen-1.title"];
+    expect(renameScreen(doc, "screen-1", "Add event")).toBe("add-event");
+    expect(doc.screens[0]!.id).toBe("add-event");
+    expect(doc.captions["add-event.title"]).toEqual(title);
+    expect(doc.captions["screen-1.title"]).toBeUndefined();
+    const t = doc.screens[0]!.layers.find((l) => l.type === "text");
+    expect(t?.type === "text" && t.text).toBe("@caption.add-event.title");
+    expect(() => renameScreen(doc, "screen-2", "add event")).toThrow(/already/);
+    expect(() => renameScreen(doc, "screen-2", "!!")).toThrow(/letters or digits/);
+  });
+});
