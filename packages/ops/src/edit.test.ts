@@ -17,3 +17,27 @@ describe("frameFor", () => {
     expect(frameFor("pixel_10_pro", 1320, 2868)).toBe("pixel_10_pro");
   });
 });
+
+describe("theme colours", async () => {
+  const { newProject } = await import("./templates.ts");
+  const { renameThemeColor, deleteThemeColor, themeColorUses } = await import("./edit.ts");
+
+  it("renames a colour everywhere it's used", () => {
+    const { doc } = newProject("App", "headline", "#2F6FEB");
+    const uses = themeColorUses(doc, "brandSoft");
+    expect(uses).toBeGreaterThan(0);
+    renameThemeColor(doc, "brandSoft", "sky");
+    expect(themeColorUses(doc, "sky")).toBe(uses);
+    expect(themeColorUses(doc, "brandSoft")).toBe(0);
+    expect(Object.keys(doc.theme.colors).indexOf("sky")).toBe(1);
+    expect(() => renameThemeColor(doc, "sky", "brand")).toThrow(/already/);
+  });
+
+  it("keeps a removed colour's value where it was used", () => {
+    const { doc } = newProject("App", "headline", "#2F6FEB");
+    const value = doc.theme.colors.brandSoft!;
+    deleteThemeColor(doc, "brandSoft");
+    expect(doc.theme.colors.brandSoft).toBeUndefined();
+    expect(JSON.stringify(doc.screens)).toContain(`"${value}"`);
+  });
+});

@@ -250,3 +250,56 @@ export function setCapture(p: Project, screenId: string, index: number, capture:
   l.box.x = cx - l.box.w / 2;
   l.box.y = bottom - l.box.h;
 }
+
+// Theme colours -----------------------------------------------------------
+
+/** Names a theme colour can have: a letter, then letters, digits, _ or -. */
+export const THEME_COLOR_NAME = /^[A-Za-z][\w-]*$/;
+
+/** Replaces every `$name` colour reference in the screens and the theme. */
+function replaceColorRefs(p: Project, name: string, next: string) {
+  const ref = `$${name}`;
+  const walk = (v: unknown): unknown => {
+    if (v === ref) return next;
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") {
+      for (const [k, x] of Object.entries(v)) (v as Record<string, unknown>)[k] = walk(x);
+    }
+    return v;
+  };
+  walk(p.screens);
+  walk(p.theme.colors);
+}
+
+/** A theme colour's name that isn't taken yet: "colour", "colour2", … */
+export function freshThemeColorName(p: Project, base = "colour"): string {
+  if (!(base in p.theme.colors)) return base;
+  for (let n = 2; ; n++) if (!(`${base}${n}` in p.theme.colors)) return `${base}${n}`;
+}
+
+/** Renames a theme colour and every reference to it. */
+export function renameThemeColor(p: Project, from: string, to: string) {
+  if (from === to) return;
+  if (!THEME_COLOR_NAME.test(to)) throw new Error(`"${to}" isn't a valid colour name: use letters, digits, _ or -, starting with a letter`);
+  if (to in p.theme.colors) throw new Error(`there's already a theme colour called "${to}"`);
+  const value = p.theme.colors[from];
+  if (value === undefined) throw new Error(`no theme colour called "${from}"`);
+  // Rebuilt so the renamed colour keeps its place in the list.
+  p.theme.colors = Object.fromEntries(Object.entries(p.theme.colors).map(([k, v]) => [k === from ? to : k, v]));
+  replaceColorRefs(p, from, `$${to}`);
+}
+
+/** Removes a theme colour; anything using it keeps the colour as a plain value. */
+export function deleteThemeColor(p: Project, name: string) {
+  const colors = p.theme.colors;
+  let value = colors[name];
+  if (value === undefined) return;
+  for (let i = 0; i < 5 && value.startsWith("$"); i++) value = colors[value.slice(1)] ?? "#000000";
+  delete colors[name];
+  replaceColorRefs(p, name, value.startsWith("$") ? "#000000" : value);
+}
+
+/** How many places (backgrounds, layers, other theme colours) use a theme colour. */
+export function themeColorUses(p: Project, name: string): number {
+  return (JSON.stringify([p.screens, p.theme.colors]).match(new RegExp(`"\\$${name.replace(/[-]/g, "\\-")}"`, "g")) ?? []).length;
+}
