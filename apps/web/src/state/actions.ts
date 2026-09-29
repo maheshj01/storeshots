@@ -1,6 +1,7 @@
 import type { Layer, Project } from "@storeshots/schema";
 import * as ops from "@storeshots/ops";
-import { useEditor } from "./store.ts";
+import type { Background } from "@storeshots/schema";
+import { selectedLayerRefs, selectedScreenIds, useEditor } from "./store.ts";
 import { saveAssets } from "./persist.ts";
 import { fetchBundledFonts } from "./fonts.ts";
 import { decodeImage } from "../engine/host.ts";
@@ -64,13 +65,29 @@ export function moveScreen(id: string, to: number) {
 }
 
 export function applyLayoutToAll(id: string) {
-  S().edit("Apply layout to all screens", (d) => ops.applyLayoutToAll(d as Project, id));
+  S().edit("Copy layout to every screen", (d) => ops.applyLayoutToAll(d as Project, id));
 }
 
-export async function switchTemplate(templateId: string) {
+/**
+ * Re-lays out screens with a template: the given ones, or every screen,
+ * which also makes the template the project's theme.
+ */
+export async function switchTemplate(templateId: string, screenIds?: string[]) {
   let fonts: string[] = [];
-  S().edit("Change template", (d) => void (fonts = ops.applyTemplate(d as Project, templateId)));
+  S().edit(screenIds ? "Change layout" : "Change template", (d) => void (fonts = ops.applyTemplate(d as Project, templateId, screenIds)));
   await ensureFonts(fonts);
+}
+
+/** Changes the background of every selected screen. */
+export function updateBackground(label: string, fn: (b: Background) => Background) {
+  const ids = selectedScreenIds(S().selection);
+  S().edit(
+    label,
+    (d) => {
+      for (const s of d.screens) if (ids.includes(s.id)) s.background = fn(s.background as Background);
+    },
+    `bg:${ids.join(",")}:${label}`,
+  );
 }
 
 // Layers -----------------------------------------------------------------
@@ -81,18 +98,22 @@ function selected() {
   return { doc, screen, index: selection.layer };
 }
 
+/**
+ * Changes a layer: the one given, or every selected layer. Recipes check
+ * the layer's type, so a setting only lands on layers that have it.
+ */
 export function updateLayer(label: string, recipe: (l: Layer) => void, at?: { screen: string; layer: number }) {
-  const { selection } = S();
-  const screenId = at?.screen ?? selection.screen;
-  const index = at?.layer ?? selection.layer;
-  if (!screenId || index === null) return;
+  const refs = at ? [at] : selectedLayerRefs(S().selection);
+  if (!refs.length) return;
   S().edit(
     label,
     (d) => {
-      const l = d.screens.find((s) => s.id === screenId)?.layers[index];
-      if (l) recipe(l as Layer);
+      for (const r of refs) {
+        const l = d.screens.find((s) => s.id === r.screen)?.layers[r.layer];
+        if (l) recipe(l as Layer);
+      }
     },
-    `${label}:${screenId}:${index}`,
+    `${label}:${refs.map((r) => `${r.screen}:${r.layer}`).join(",")}`,
   );
 }
 
@@ -122,11 +143,16 @@ export async function addImageLayer(file: File) {
   S().select({ layer: index });
 }
 
+/** Deletes every selected layer, as one undo step. */
 export function deleteLayer() {
-  const { screen, index } = selected();
-  if (!screen || index === null) return;
-  S().edit("Delete layer", (d) => ops.deleteLayer(d as Project, screen.id, index));
-  S().select({ layer: null });
+  const refs = selectedLayerRefs(S().selection);
+  if (!refs.length) return;
+  // From the top of each stack down, so earlier deletions don't shift later indices.
+  const order = [...refs].sort((a, b) => b.layer - a.layer);
+  S().edit(refs.length > 1 ? `Delete ${refs.length} layers` : "Delete layer", (d) => {
+    for (const r of order) ops.deleteLayer(d as Project, r.screen, r.layer);
+  });
+  S().select({ screen: refs[0]!.screen, layer: null });
 }
 
 export function duplicateLayer() {

@@ -91,7 +91,7 @@ describe("layers", () => {
 
   it("restacks layers and keeps them selected", () => {
     A.moveLayerTo("screen-1", 0, 1);
-    expect(S().selection).toEqual({ screen: "screen-1", layer: 1 });
+    expect(S().selection).toEqual({ screen: "screen-1", layer: 1, more: [] });
     expect(S().past.at(-1)!.label).toBe("Reorder layers");
     A.moveLayerTo("screen-1", 1, 2);
     expect(S().past.at(-1)!.label).toBe("Bring to front");
@@ -108,5 +108,47 @@ describe("layers", () => {
     const [a, b] = S().doc!.screens[0]!.layers;
     expect(a?.type === "text" && b?.type === "text" && a.text !== b.text).toBe(true);
     expect(valid()).toEqual([]);
+  });
+});
+
+describe("multiple selection", () => {
+  it("adds and removes items with Shift, keeping one kind", () => {
+    S().select({ screen: "screen-1", layer: 0 });
+    S().toggleSelect({ screen: "screen-2", layer: 0 });
+    expect(S().selection).toEqual({ screen: "screen-2", layer: 0, more: [{ screen: "screen-1", layer: 0 }] });
+    // A screen can't join a selection of layers: it replaces it.
+    S().toggleSelect({ screen: "screen-3", layer: null });
+    expect(S().selection).toEqual({ screen: "screen-3", layer: null, more: [] });
+    S().toggleSelect({ screen: "screen-1", layer: null });
+    S().toggleSelect({ screen: "screen-3", layer: null });
+    expect(S().selection).toEqual({ screen: "screen-1", layer: null, more: [] });
+  });
+
+  it("changes every selected layer in one undo step, only where the setting applies", () => {
+    S().select({ screen: "screen-1", layer: 0 });
+    S().toggleSelect({ screen: "screen-2", layer: 0 });
+    S().toggleSelect({ screen: "screen-2", layer: 2 });
+    const steps = S().past.length;
+    A.updateLayer("Font size", (l) => l.type === "text" && void (l.size = 0.05));
+    const [one, two] = S().doc!.screens;
+    expect([one!.layers[0], two!.layers[0]].map((l) => l?.type === "text" && l.size)).toEqual([0.05, 0.05]);
+    expect(two!.layers[2]!.type).toBe("device");
+    expect(S().past.length).toBe(steps + 1);
+  });
+
+  it("deletes every selected layer", () => {
+    S().select({ screen: "screen-1", layer: 0 });
+    S().toggleSelect({ screen: "screen-1", layer: 1 });
+    A.deleteLayer();
+    expect(S().doc!.screens[0]!.layers.map((l) => l.type)).toEqual(["device"]);
+    S().undo();
+    expect(S().doc!.screens[0]!.layers).toHaveLength(3);
+  });
+
+  it("changes the background of every selected screen", () => {
+    S().select({ screen: "screen-1", layer: null });
+    S().toggleSelect({ screen: "screen-3", layer: null });
+    A.updateBackground("Background colour", () => ({ type: "solid", color: "#123456" }));
+    expect(S().doc!.screens.map((s) => s.background.type === "solid" && s.background.color)).toEqual(["#123456", false, "#123456", false]);
   });
 });

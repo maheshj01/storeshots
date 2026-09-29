@@ -20,6 +20,21 @@ export interface Selection {
   layer: number | null;
 }
 
+/** One selected thing: a layer, or a whole screen when `layer` is null. */
+export interface SelectionRef {
+  screen: string;
+  layer: number | null;
+}
+
+/**
+ * The selection: the primary item (the last one clicked, whose values the
+ * inspector shows) plus any others added with Shift. Everything selected is
+ * the same kind: all layers (from any screens) or all screens.
+ */
+export interface MultiSelection extends Selection {
+  more: SelectionRef[];
+}
+
 export interface EditorState {
   projectId: string | null;
   doc: Project | null;
@@ -33,7 +48,7 @@ export interface EditorState {
   unsavedAssets: Set<string>;
   docSavedToFolder: boolean;
 
-  selection: Selection;
+  selection: MultiSelection;
   /** The layer under the pointer, on the canvas or in the layers list; shown on both. */
   hover: Selection;
   locale: string;
@@ -55,7 +70,10 @@ export interface EditorState {
   /** Adds project files; `fromFolder` marks ones read from the linked folder, which needn't be written back. */
   addAssets(files: Array<[string, Blob]>, opts?: { fromFolder?: boolean }): void;
   setFolder(folder: FileSystemDirectoryHandle | null): void;
+  /** Selects one thing, dropping anything added with Shift. */
   select(sel: Partial<Selection>): void;
+  /** Shift-click: adds an item to the selection, or takes it out if it's in. */
+  toggleSelect(ref: SelectionRef): void;
   setHover(hover: Selection): void;
   setLocale(locale: string): void;
   setTarget(target: string): void;
@@ -73,7 +91,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   folder: null,
   unsavedAssets: new Set(),
   docSavedToFolder: true,
-  selection: { screen: null, layer: null },
+  selection: { screen: null, layer: null, more: [] },
   hover: { screen: null, layer: null },
   locale: "en",
   target: "",
@@ -91,7 +109,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       folder,
       unsavedAssets: new Set(),
       docSavedToFolder: true,
-      selection: { screen: doc.screens[0]?.id ?? null, layer: null },
+      selection: { screen: doc.screens[0]?.id ?? null, layer: null, more: [] },
       locale: doc.locales.default,
       target: doc.targets[0]?.id ?? "",
       past: [],
@@ -179,7 +197,21 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   select(sel) {
-    set({ selection: { ...get().selection, ...sel } });
+    const { screen, layer } = get().selection;
+    set({ selection: { screen, layer, ...sel, more: [] } });
+  },
+  toggleSelect(ref) {
+    const all = selectedRefs(get().selection);
+    const kind = (r: SelectionRef) => r.layer !== null;
+    if (all.length === 0 || kind(all[0]!) !== kind(ref)) return get().select(ref);
+    const same = (r: SelectionRef) => r.screen === ref.screen && r.layer === ref.layer;
+    if (all.some(same)) {
+      const rest = all.filter((r) => !same(r));
+      const [head, ...more] = rest;
+      if (!head) return get().select(ref.layer === null ? { screen: null, layer: null } : { screen: ref.screen, layer: null });
+      return set({ selection: { screen: head.screen, layer: head.layer, more } });
+    }
+    set({ selection: { screen: ref.screen, layer: ref.layer, more: all } });
   },
   setHover(hover) {
     const h = get().hover;
@@ -192,14 +224,42 @@ export const useEditor = create<EditorState>((set, get) => ({
   markFolderSaved: () => set({ unsavedAssets: new Set(), docSavedToFolder: true }),
 }));
 
-/** Keeps the selection pointing at something that exists after undo and redo. */
-function fixSelection() {
-  const { doc, selection, select } = useEditor.getState();
+/** Everything selected, primary first. */
+export function selectedRefs(sel: MultiSelection): SelectionRef[] {
+  return sel.screen ? [{ screen: sel.screen, layer: sel.layer }, ...sel.more] : [];
+}
+
+/** Keeps the selection pointing at things that exist, after undo, redo or an outside change. */
+export function fixSelection() {
+  const { doc, selection } = useEditor.getState();
   if (!doc) return;
-  const screen = doc.screens.find((s) => s.id === selection.screen) ?? doc.screens[0];
-  const layer =
-    screen && selection.layer !== null && selection.layer < screen.layers.length ? selection.layer : null;
-  select({ screen: screen?.id ?? null, layer });
+  const exists = (r: SelectionRef) => {
+    const s = doc.screens.find((x) => x.id === r.screen);
+    return !!s && (r.layer === null || r.layer < s.layers.length);
+  };
+  const refs = selectedRefs(selection).filter(exists);
+  if (refs.length) {
+    const [head, ...more] = refs;
+    return useEditor.setState({ selection: { screen: head!.screen, layer: head!.layer, more } });
+  }
+  // The primary layer is gone: fall back to its screen, if that's still there.
+  const screen = doc.screens.find((s) => s.id === selection.screen);
+  useEditor.setState({ selection: { screen: screen?.id ?? null, layer: null, more: [] } });
+}
+
+/** The selected layers, primary first; empty when screens are selected. */
+export function selectedLayerRefs(sel: MultiSelection): Array<{ screen: string; layer: number }> {
+  return sel.layer === null ? [] : (selectedRefs(sel) as Array<{ screen: string; layer: number }>);
+}
+
+/** The selected screen ids, primary first; empty when layers are selected. */
+export function selectedScreenIds(sel: MultiSelection): string[] {
+  return sel.layer === null ? selectedRefs(sel).map((r) => r.screen) : [];
+}
+
+/** Whether a layer is part of the selection. */
+export function isLayerSelected(sel: MultiSelection, screen: string, layer: number): boolean {
+  return sel.layer !== null && selectedRefs(sel).some((r) => r.screen === screen && r.layer === layer);
 }
 
 /** The selected screen, or null. */

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import type { DeviceLayer, Layer, Screen } from "@storeshots/schema";
 import { findFrame } from "@storeshots/frames";
 import { frameGeometry } from "@storeshots/core";
-import { useEditor } from "../state/store.ts";
+import { isLayerSelected, selectedLayerRefs, useEditor } from "../state/store.ts";
 import { updateLayer } from "../state/actions.ts";
 import { useFrameDef } from "../engine/preview.ts";
 import { layerName, TYPE_LABEL } from "./layerName.ts";
@@ -51,6 +51,12 @@ function frameIdOf(l: DeviceLayer, store: string): string | undefined {
 
 export function Overlay({ screen, width, height, target, active }: Props) {
   const selectedLayer = useEditor((s) => (s.selection.screen === screen.id ? s.selection.layer : null));
+  // Every selected layer on this screen, including ones added with Shift.
+  const selection = useEditor((s) => s.selection);
+  const multi = selection.layer !== null && selection.more.length > 0;
+  const selectedHere = selectedLayerRefs(selection)
+    .filter((r) => r.screen === screen.id)
+    .map((r) => r.layer);
   const store = useEditor((s) => s.doc?.targets.find((t) => t.id === s.target)?.store ?? "play");
   // Shared with the layers list, so hovering either one highlights both.
   const hover = useEditor((s) => (s.hover.screen === screen.id ? s.hover.layer : null));
@@ -128,13 +134,23 @@ export function Overlay({ screen, width, height, target, active }: Props) {
     const start = layer.type === "device" ? startBody : rectOf(layer);
     const p0 = local(e);
     const lines = snapLines(index);
-    const { beginGesture, endGesture } = useEditor.getState();
+    const { beginGesture, endGesture, doc: startDoc, selection: startSel } = useEditor.getState();
+    // Moving one of several selected layers moves them all, on any screen, by the same amount.
+    const others =
+      mode.kind === "move" && isLayerSelected(startSel, screen.id, index)
+        ? selectedLayerRefs(startSel)
+            .filter((r) => !(r.screen === screen.id && r.layer === index))
+            .map((r) => ({ ...r, box: startDoc!.screens.find((x) => x.id === r.screen)!.layers[r.layer]!.box }))
+        : [];
     beginGesture(mode.kind === "move" ? "Move layer" : mode.kind === "rotate" ? "Rotate layer" : "Resize layer");
     const keepAspect = layer.type === "device" || layer.type === "image";
     (e.target as Element).setPointerCapture(e.pointerId);
 
+    let moved = false;
     const onMove = (ev: PointerEvent) => {
       const p = local(ev);
+      if (!moved && Math.hypot(p.x - p0.x, p.y - p0.y) < 2) return;
+      moved = true;
       const set = (r: Rect, rotate = layer.rotate) =>
         updateLayer("Edit layer", (l) => {
           l.box = { x: r.x / width, y: r.y / height, w: r.w / width, h: r.h / height };
@@ -162,6 +178,9 @@ export function Overlay({ screen, width, height, target, active }: Props) {
         if (ev.shiftKey) Math.abs(dx) > Math.abs(dy) ? (dy = 0) : (dx = 0);
         setGuides(g);
         set({ ...start, x: start.x + dx, y: start.y + dy });
+        for (const o of others) {
+          updateLayer("Edit layer", (l) => void (l.box = { ...o.box, x: o.box.x + dx / width, y: o.box.y + dy / height }), o);
+        }
         const rx = Math.round(((start.x + dx) / width) * target[0]);
         const ry = Math.round(((start.y + dy) / height) * target[1]);
         setReadout({ x: start.x + dx + start.w / 2, y: start.y + dy + start.h, text: `${rx}, ${ry}` });
@@ -212,6 +231,8 @@ export function Overlay({ screen, width, height, target, active }: Props) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       endGesture();
+      // A click (no drag) on one of several selected layers selects just that one.
+      if (!moved && others.length) useEditor.getState().select({ screen: screen.id, layer: index });
       setGuides({ v: [], h: [] });
       setReadout(null);
     };
@@ -222,12 +243,19 @@ export function Overlay({ screen, width, height, target, active }: Props) {
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     const hit = hitTest(local(e));
-    useEditor.getState().select({ screen: screen.id, layer: hit });
+    const st = useEditor.getState();
+    // Shift adds a layer, or with no layer under the pointer the screen, to the selection.
+    if (e.shiftKey) {
+      e.preventDefault(); // no text selection across the page
+      return st.toggleSelect({ screen: screen.id, layer: hit });
+    }
+    // Pressing on a layer that's already selected keeps the others, to drag them together.
+    if (hit === null || !isLayerSelected(st.selection, screen.id, hit)) st.select({ screen: screen.id, layer: hit });
     if (hit !== null) startDrag(e, hit, { kind: "move" });
   };
 
   const sel = selectedLayer !== null ? screen.layers[selectedLayer] : undefined;
-  const hov = hover !== null && hover !== selectedLayer ? screen.layers[hover] : undefined;
+  const hov = hover !== null && !selectedHere.includes(hover) ? screen.layers[hover] : undefined;
 
   return (
     <div
@@ -249,8 +277,16 @@ export function Overlay({ screen, width, height, target, active }: Props) {
           <Tag rect={bodyOf(hov)} text={`${TYPE_LABEL[hov.type]} · ${layerName(doc, hov, locale)}`} muted />
         </>
       )}
-      {sel && active && <Tag rect={bodyOf(sel)} text={`${TYPE_LABEL[sel.type]} · ${layerName(doc, sel, locale)}`} />}
       {sel && active && (
+        <Tag rect={bodyOf(sel)} text={multi ? `${selectedLayerRefs(selection).length} layers selected` : `${TYPE_LABEL[sel.type]} · ${layerName(doc, sel, locale)}`} />
+      )}
+      {selectedHere.map((i) => {
+        const l = screen.layers[i];
+        // With one layer selected it gets handles below; with several, each gets an outline.
+        if (!l || (!multi && active && i === selectedLayer)) return null;
+        return <Box key={`s${i}`} rect={bodyOf(l)} rotate={l.rotate} center={rectOf(l)} className="sel" />;
+      })}
+      {sel && active && !multi && (
         <Selection
           layer={sel}
           rect={rectOf(sel)}

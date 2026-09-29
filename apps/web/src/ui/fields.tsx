@@ -44,13 +44,16 @@ export function NumberField(props: {
   max?: number;
   digits?: number;
   title?: string;
+  /** The selected layers differ here: the field shows "Mixed" and sets them all when changed. */
+  mixed?: boolean;
 }) {
   const { step = 1, digits = 0 } = props;
-  const [draft, setDraft] = useState(props.value.toFixed(digits));
+  const shown = props.mixed ? "" : props.value.toFixed(digits);
+  const [draft, setDraft] = useState(shown);
   const focused = useRef(false);
   useEffect(() => {
-    if (!focused.current) setDraft(props.value.toFixed(digits));
-  }, [props.value, digits]);
+    if (!focused.current) setDraft(shown);
+  }, [shown]);
   const clamp = (v: number) => Math.min(props.max ?? Infinity, Math.max(props.min ?? -Infinity, v));
   const scrub = (e: React.PointerEvent) => {
     const startX = e.clientX;
@@ -79,13 +82,14 @@ export function NumberField(props: {
         inputMode="decimal"
         aria-label={props.title ?? props.label}
         value={draft}
+        placeholder={props.mixed ? "Mixed" : undefined}
         onFocus={() => (focused.current = true)}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
           focused.current = false;
           const v = parseFloat(draft);
-          if (Number.isFinite(v) && v !== props.value) props.onChange(clamp(v));
-          else setDraft(props.value.toFixed(digits));
+          if (Number.isFinite(v) && (props.mixed || v !== props.value)) props.onChange(clamp(v));
+          else setDraft(shown);
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -101,7 +105,8 @@ export function NumberField(props: {
 }
 
 export function Segmented<T extends string>(props: {
-  value: T;
+  /** null when the selected items differ: nothing is shown as chosen. */
+  value: T | null;
   options: Array<{ value: T; label: ReactNode; title?: string }>;
   onChange: (v: T) => void;
   label: string;
@@ -117,11 +122,15 @@ export function Segmented<T extends string>(props: {
   );
 }
 
-export function Toggle(props: { label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string }) {
+export function Toggle(props: { label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string; mixed?: boolean }) {
+  const box = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (box.current) box.current.indeterminate = !!props.mixed;
+  }, [props.mixed]);
   return (
     <label className="toggle" title={props.hint}>
       <span>{props.label}</span>
-      <input type="checkbox" checked={props.checked} onChange={(e) => props.onChange(e.target.checked)} />
+      <input ref={box} type="checkbox" checked={props.mixed ? false : props.checked} onChange={(e) => props.onChange(e.target.checked)} />
     </label>
   );
 }
@@ -139,7 +148,7 @@ export function useResolvedColor(value: string): string {
  * for theme colours. Choosing a chip stores the `$name` reference, so later
  * theme edits flow through.
  */
-export function ColorField(props: { label: string; value: string; onChange: (v: string) => void }) {
+export function ColorField(props: { label: string; value: string; onChange: (v: string) => void; mixed?: boolean }) {
   const colors = useEditor((s) => s.doc?.theme.colors ?? {});
   const resolved = useResolvedColor(props.value);
   const hex6 = resolved.slice(0, 7);
@@ -159,7 +168,8 @@ export function ColorField(props: { label: string; value: string; onChange: (v: 
         <TextInput
           className="input mono"
           aria-label={`${props.label} hex`}
-          value={props.value}
+          value={props.mixed ? "" : props.value}
+          placeholder={props.mixed ? "Mixed" : undefined}
           onCommit={(v) => {
             const t = v.trim();
             if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(t) || (t.startsWith("$") && t.slice(1) in colors)) props.onChange(t);
@@ -169,7 +179,7 @@ export function ColorField(props: { label: string; value: string; onChange: (v: 
       {Object.keys(colors).length > 0 && (
         <div className="chips">
           {Object.entries(colors).map(([name, c]) => (
-            <button key={name} type="button" className="chip" aria-pressed={props.value === `$${name}`} onClick={() => props.onChange(`$${name}`)} title={`${name} ${c}`}>
+            <button key={name} type="button" className="chip" aria-pressed={!props.mixed && props.value === `$${name}`} onClick={() => props.onChange(`$${name}`)} title={`${name} ${c}`}>
               <ThemeDot value={c} />
               {name}
             </button>

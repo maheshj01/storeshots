@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, Layers3, Pane
 import type { Project } from "@storeshots/schema";
 import { CATALOG, type VectorFrame } from "@storeshots/frames";
 import { frameAspect } from "@storeshots/core";
-import { useEditor, useSelectedScreen } from "../state/store.ts";
+import { isLayerSelected, useEditor, useSelectedScreen } from "../state/store.ts";
 import { addImageLayer, addLayer, captureList, fillWithCaptures, moveLayerTo, setCapture, storeCaptures, updateLayer } from "../state/actions.ts";
 import { layerName, TYPE_LABEL } from "./layerName.ts";
 import { useObjectUrls } from "./useObjectUrls.ts";
@@ -115,6 +115,7 @@ function Layers() {
   const locale = useEditor((s) => s.locale);
   const screen = useSelectedScreen();
   const selected = useEditor((s) => s.selection.layer);
+  const selection = useEditor((s) => s.selection);
   const hover = useEditor((s) => (s.hover.screen === s.selection.screen ? s.hover.layer : null));
   const imageInput = useRef<HTMLInputElement>(null);
   // Row being dragged, and the row and half it's over.
@@ -245,8 +246,13 @@ function Layers() {
               <button
                 type="button"
                 className={hover === i && selected !== i ? "hovered" : undefined}
-                aria-current={selected === i}
-                onClick={() => !justDragged.current && useEditor.getState().select({ layer: i })}
+                aria-current={isLayerSelected(selection, screen.id, i)}
+                onClick={(e) => {
+                  if (justDragged.current) return;
+                  // Shift adds the layer to the selection (or takes it out).
+                  if (e.shiftKey) useEditor.getState().toggleSelect({ screen: screen.id, layer: i });
+                  else useEditor.getState().select({ screen: screen.id, layer: i });
+                }}
                 onKeyDown={(e) => {
                   // Alt + arrows restack from the keyboard.
                   if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;

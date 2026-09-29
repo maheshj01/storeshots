@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Copy, GalleryHorizontal, GripVertical, LayoutGrid, Plus, Trash2, CircleCheck, CircleAlert, TriangleAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, Copy, GalleryHorizontal, GripVertical, LayoutGrid, LayoutTemplate, Plus, Trash2, CircleCheck, CircleAlert, TriangleAlert } from "lucide-react";
 import type { Screen, Target } from "@storeshots/schema";
 import { checkImage, checkSet, PLAY, APPSTORE } from "@storeshots/stores";
 import { useEditor, useTarget } from "../state/store.ts";
-import { addScreen, deleteScreen, duplicateScreen, fillWithCaptures, moveScreen, setCapture, storeCaptures } from "../state/actions.ts";
+import { addScreen, applyLayoutToAll, deleteScreen, duplicateScreen, fillWithCaptures, moveScreen, setCapture, storeCaptures } from "../state/actions.ts";
 import { useScreenPreview } from "../engine/preview.ts";
 import { Overlay } from "./Overlay.tsx";
+import { toast } from "./toast.ts";
 
 /** Display height of a sheet at 100% zoom, in CSS px. */
 const BASE_HEIGHT = 560;
@@ -366,7 +367,8 @@ export function Table() {
       {...pan.handlers}
       onPointerDown={(e) => {
         if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains("strip")) {
-          useEditor.getState().select({ layer: null });
+          // The empty table: nothing selected, so the inspector shows the project's settings.
+          useEditor.getState().select({ screen: null, layer: null });
         }
       }}
       onDragOver={(e) => {
@@ -451,7 +453,7 @@ export function Table() {
 
 function Sheet({ screen, index, count, width, height, target }: { screen: Screen; index: number; count: number; width: number; height: number; target: Target }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const selected = useEditor((s) => s.selection.screen === screen.id);
+  const selected = useEditor((s) => s.selection.screen === screen.id || (s.selection.layer === null && s.selection.more.some((r) => r.screen === screen.id)));
   const preview = useScreenPreview(canvas, screen.id, width);
   const [over, setOver] = useState(false);
   const issues = useMemo(
@@ -564,6 +566,18 @@ function Sheet({ screen, index, count, width, height, target }: { screen: Screen
         </button>
         <button type="button" className="btn ghost icon" title="Move right" disabled={index === count - 1} onClick={() => moveScreen(screen.id, index + 1)}>
           <ArrowRight aria-hidden />
+        </button>
+        <button
+          type="button"
+          className="btn ghost icon"
+          title="Copy this layout to every screen (keeps their text and screenshots)"
+          disabled={count <= 1}
+          onClick={() => {
+            applyLayoutToAll(screen.id);
+            toast(`Copied screen ${index + 1}'s layout to every screen. Undo with ⌘Z.`);
+          }}
+        >
+          <LayoutTemplate aria-hidden />
         </button>
         <button type="button" className="btn ghost icon" title="Duplicate screen" onClick={() => duplicateScreen(screen.id)}>
           <Copy aria-hidden />
