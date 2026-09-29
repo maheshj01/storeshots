@@ -204,14 +204,30 @@ function contentOf(screen: Screen) {
 /**
  * Re-lays out screens with a template. Literal text is turned into captions
  * so nothing typed is lost. Returns the fonts the template needs.
+ *
+ * On every screen, the template becomes the project's theme. On some
+ * screens only, the theme is left alone: those screens get the template's
+ * fonts and colours as plain values (still following the brand colour), so
+ * the other screens don't change.
  */
 export function applyTemplate(doc: Project, templateId: string, screenIds?: string[]): string[] {
   const t = findTemplate(templateId);
   const target = doc.targets[0]!;
   const brand = doc.theme.colors.brand ?? "#E0237A";
-  doc.theme.fonts.heading = `fonts/${t.fonts.heading}`;
-  doc.theme.fonts.body = `fonts/${t.fonts.body}`;
-  doc.theme.colors = { ...doc.theme.colors, ...t.colors(brand.startsWith("$") ? "#E0237A" : brand) };
+  const colors = t.colors(brand.startsWith("$") ? "#E0237A" : brand);
+  const fonts: Record<string, string> = { heading: `fonts/${t.fonts.heading}`, body: `fonts/${t.fonts.body}` };
+  const partial = !!screenIds && doc.screens.some((s) => !screenIds.includes(s.id));
+  if (!partial) {
+    doc.theme.fonts.heading = fonts.heading!;
+    doc.theme.fonts.body = fonts.body!;
+    doc.theme.colors = { ...doc.theme.colors, ...colors };
+  }
+  const literal = <T>(value: T): T =>
+    JSON.parse(JSON.stringify(value), (key, v) => {
+      if (typeof v !== "string" || !v.startsWith("$") || v === "$brand") return v;
+      const name = v.slice(1);
+      return key === "font" ? (fonts[name] ?? v) : (colors[name] ?? v);
+    });
   doc.screens.forEach((screen, i) => {
     if (screenIds && !screenIds.includes(screen.id)) return;
     const c = contentOf(screen);
@@ -229,7 +245,7 @@ export function applyTemplate(doc: Project, templateId: string, screenIds?: stri
       frame: c.frame,
       variant: c.variant,
     };
-    const next = t.screen(i, ctx);
+    const next = partial ? literal(t.screen(i, ctx)) : t.screen(i, ctx);
     screen.background = next.background;
     screen.layers = next.layers;
   });
