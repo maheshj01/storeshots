@@ -20,6 +20,9 @@ export const SERVER_NAME = "storeshots-mcp-server";
 const UNITS =
   "Positions and sizes are output pixels of the target (default: the first target), x,y is the top-left corner. Layers are numbered from the bottom, starting at 0.";
 
+const THEME =
+  'Theme colours are the project\'s named colours, its design system: a colour written "$name" (e.g. "$brand") is a reference to the theme colour "name", so changing that theme colour with storeshots_set_theme restyles every background and layer that uses it. Prefer theme colours over plain #hex for anything that should stay consistent across screens.';
+
 // Shared parameter schemas -------------------------------------------------
 
 const projectDir = z
@@ -30,7 +33,8 @@ const screenId = z.string().describe('Screen id, e.g. "home". storeshots_get_pro
 const layerIndex = z.number().int().min(0).describe("Layer number on the screen, 0 = bottom.");
 const locale = z.string().optional().describe("Locale for text, e.g. \"de\". Defaults to the project's default locale.");
 const target = z.string().optional().describe('Target id, e.g. "play-phone". Defaults to the first target.');
-const color = z.string().describe("#RGB, #RRGGBB, #RRGGBBAA, or a theme colour like $brand");
+const color = z.string().describe('#RGB, #RRGGBB, #RRGGBBAA, or "$name" to use (and stay linked to) the theme colour "name", e.g. "$brand"');
+const layerRef = z.object({ screen: screenId, layer: layerIndex });
 
 const LayerProps = {
   x: z.number().optional().describe("Left edge in px"),
@@ -44,7 +48,7 @@ const LayerProps = {
   font: z.string().optional().describe('Text layers: "$heading", "$body", or a font file like "fonts/DMSerifDisplay-Regular.ttf". Bundled fonts are copied in when first used.'),
   font_size: z.number().positive().optional().describe("Text layers: font size in px"),
   line_height: z.number().positive().optional().describe("Text layers: line height as a multiple of the font size, e.g. 1.1"),
-  color: color.optional().describe("Text and shape layers: colour, #hex or $themeColor"),
+  color: color.optional().describe('Text and shape layers: colour, #hex or "$name" for a theme colour'),
   align: z.enum(["left", "center", "right"]).optional().describe("Text layers"),
   valign: z.enum(["top", "middle", "bottom"]).optional().describe("Text layers: where the lines sit in the box"),
   shrink_to_fit: z.boolean().optional().describe("Text layers: shrink the font until the text fits the box (default true)"),
@@ -173,6 +177,26 @@ async function applyPatch(folder: ProjectFolder, p: Project, screen: string, ind
   }
 }
 
+/**
+ * Applies a patch to several layers, each getting only the fields its type
+ * has. Returns what was skipped per layer; fails if a field fits none.
+ */
+async function applyPatchToMany(folder: ProjectFolder, p: Project, refs: Array<{ screen: string; layer: number }>, patch: Patch, tgt: string | undefined, loc: string): Promise<string[]> {
+  const used = new Set<string>();
+  const notes: string[] = [];
+  for (const r of refs) {
+    const type = ops.getLayer(p, r.screen, r.layer).type;
+    const fits = Object.entries(patch).filter(([k]) => !APPLIES[k] || APPLIES[k]!.includes(type));
+    const skipped = Object.keys(patch).filter((k) => APPLIES[k] && !APPLIES[k]!.includes(type));
+    fits.forEach(([k]) => used.add(k));
+    if (skipped.length) notes.push(`${r.screen} [${r.layer}] is a ${type} layer: skipped ${skipped.join(", ")}`);
+    if (fits.length) await applyPatch(folder, p, r.screen, r.layer, Object.fromEntries(fits) as Patch, tgt, loc);
+  }
+  const unused = Object.keys(patch).filter((k) => !used.has(k));
+  if (unused.length) throw new Error(`${unused.join(", ")} can't be set on any of these layers (${[...new Set(refs.map((r) => ops.getLayer(p, r.screen, r.layer).type))].join(", ")})`);
+  return notes;
+}
+
 async function inspect(folder: ProjectFolder, p: Project, screen: string, loc?: string, tgt?: string): Promise<ScreenInspection> {
   return inspectScreen(p, { screen, locale: pickLocale(p, loc), target: pickTarget(p, tgt).id }, folder.cache());
 }
@@ -181,6 +205,11 @@ async function inspect(folder: ProjectFolder, p: Project, screen: string, loc?: 
 async function afterEdit(folder: ProjectFolder, p: Project, done: string, screen: string, layers?: number[], loc?: string, tgt?: string) {
   const i = await inspect(folder, p, screen, loc, tgt);
   return ok(`${done}\n${inspectionText(i, { layers })}`);
+}
+
+/** Theme colours with their values and how many places use each. */
+function themeLine(p: Project): string {
+  return Object.entries(p.theme.colors).map(([k, v]) => `$${k} ${v} (used ${ops.themeColorUses(p, k)}×)`).join(" · ") || "none";
 }
 
 function screenSummary(p: Project, s: Screen, i: ScreenInspection | null, n: number): string {
@@ -208,7 +237,14 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
   const server = new McpServer(
     { name: SERVER_NAME, version: "0.1.0" },
     {
-      instructions: `Edits App Store and Google Play screenshot designs. The project is a folder with a storeshots.json, or (project_dir "live") the project open in the storeshots web editor, whose screen updates as you edit. Start with storeshots_get_project, read a screen with storeshots_inspect_screen, and change it with the edit tools: each edit returns the updated layout and any problems, so you rarely need to render. ${UNITS} Run storeshots_check before exporting with storeshots_render. Every edit is saved to storeshots.json immediately; use git to review or revert.`,
+      instructions: [
+        'Edits App Store and Google Play screenshot designs. The project is a folder with a storeshots.json, or (project_dir "live") the project open in the storeshots web editor, whose screen updates as you edit.',
+        "Start with storeshots_get_project, read a screen with storeshots_inspect_screen, and change it with the edit tools: each edit returns the updated layout and any problems, so you rarely need to render.",
+        UNITS,
+        THEME,
+        'To change the same thing on several layers (say, every caption\'s font), pass them all in one storeshots_update_layer call with "layers"; each layer only gets the fields its type has. storeshots_set_background and storeshots_apply_template also take several screens. Changes stay on what you name: a template applied to some screens leaves the others and the theme alone.',
+        "Run storeshots_check before exporting with storeshots_render. Every edit is saved to storeshots.json immediately; use git to review or revert.",
+      ].join(" "),
     },
   );
   const folders = new Map<string, ProjectFolder>();
@@ -231,7 +267,7 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
     "storeshots_get_project",
     {
       title: "Get project overview",
-      description: `Summarises a storeshots project: targets and sizes, locales, theme colours and fonts, available frames, templates and screenshots, and each screen's layers with a count of problems. Start here. ${UNITS}`,
+      description: `Summarises a storeshots project: targets and sizes, locales, theme colours (with how often each is used) and fonts, available frames, templates and screenshots, and each screen's layers with a count of problems. Start here. ${UNITS}`,
       inputSchema: { project_dir: projectDir },
       annotations: read,
     },
@@ -243,7 +279,7 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
         const lines = [`project ${JSON.stringify(p.name)} · ${folder.describe()}`];
         lines.push(`targets: ${p.targets.map((t, i) => `${t.id} ${t.size.join("×")} (${t.store}${t.device ? ` ${t.device}` : ""}, ${t.format})${i === 0 ? " [default]" : ""}`).join(" · ")}`);
         lines.push(`locales: ${p.locales.list.map((l) => (l === p.locales.default ? `${l} (default)` : l)).join(", ")}`);
-        lines.push(`theme colours: ${Object.entries(p.theme.colors).map(([k, v]) => `$${k} ${v}`).join(" · ") || "none"}`);
+        lines.push(`theme colours ($name references): ${themeLine(p)}`);
         lines.push(`theme fonts: ${Object.entries(p.theme.fonts).map(([k, v]) => `$${k} ${v}`).join(" · ") || "none"}`);
         lines.push(`bundled fonts: ${ops.BUNDLED_FONTS.map((f) => `fonts/${f.file}`).join(", ")}`);
         const imported = await folder.importedFrames();
@@ -345,16 +381,34 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
   server.registerTool(
     "storeshots_update_layer",
     {
-      title: "Update a layer",
-      description: `Changes one layer: position and size, rotation, opacity, and type-specific properties (text, font, font size, colour, alignment for text; frame, finish, screenshot for devices; shape, colour, radius for shapes). Only the fields you pass change. Returns the updated layer and the screen's problems. ${UNITS}`,
-      inputSchema: { screen: screenId, layer: layerIndex, set: LayerPatch.describe("Fields to change"), locale, target, project_dir: projectDir },
+      title: "Update one or more layers",
+      description: `Changes layers: position and size, rotation, opacity, and type-specific properties (text, font, font size, colour, alignment for text; frame, finish, screenshot, shadow for devices; shape, colour, radius for shapes; fit, radius for images). Only the fields you pass change, and the values are set as given on every layer (x: 80 puts each at x 80). For one layer pass screen and layer; a field its type doesn't have is refused. For several at once, even on different screens (e.g. every caption's font), pass "layers": each gets only the fields its type has, and the result says what was skipped. All of it is one change. Returns the updated layers and each screen's problems. ${UNITS}`,
+      inputSchema: {
+        screen: screenId.optional().describe("One layer: its screen id"),
+        layer: layerIndex.optional().describe("One layer: its number, 0 = bottom"),
+        layers: z.array(layerRef).min(1).optional().describe('Several layers instead of screen and layer, e.g. [{"screen":"home","layer":1},{"screen":"search","layer":1}]'),
+        set: LayerPatch.describe("Fields to change"),
+        locale,
+        target,
+        project_dir: projectDir,
+      },
       annotations: write,
     },
-    async ({ screen, layer, set, locale: loc, target: tgt, project_dir }) => {
+    async ({ screen, layer, layers, set, locale: loc, target: tgt, project_dir }) => {
       try {
+        if (!layers === (screen === undefined || layer === undefined)) throw new Error("pass either screen and layer, or layers");
         const folder = folderFor(project_dir);
-        const { project } = await folder.edit(async (p) => applyPatch(folder, p, screen, layer, set, tgt, pickLocale(p, loc)));
-        return afterEdit(folder, project, `updated ${screen} [${layer}]: ${Object.keys(set).join(", ")}`, screen, [layer], loc, tgt);
+        if (!layers) {
+          const { project } = await folder.edit(async (p) => applyPatch(folder, p, screen!, layer!, set, tgt, pickLocale(p, loc)));
+          return afterEdit(folder, project, `updated ${screen} [${layer}]: ${Object.keys(set).join(", ")}`, screen!, [layer!], loc, tgt);
+        }
+        const { project, result: notes } = await folder.edit(async (p) => applyPatchToMany(folder, p, layers, set, tgt, pickLocale(p, loc)));
+        const out = [`updated ${layers.length} layers: ${Object.keys(set).join(", ")}`, ...notes];
+        for (const id of [...new Set(layers.map((r) => r.screen))]) {
+          const i = await inspect(folder, project, id, loc, tgt);
+          out.push(inspectionText(i, { layers: layers.filter((r) => r.screen === id).map((r) => r.layer) }));
+        }
+        return ok(out.join("\n"));
       } catch (e) {
         return fail(e);
       }
@@ -400,7 +454,7 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
     {
       title: "Remove, duplicate or restack a layer",
       description:
-        'action "remove" deletes the layer; "duplicate" copies it just above itself (text gets its own caption); "move_to" puts it at stacking position `to` (0 = bottom). Layer numbers above the change shift, so the result lists the screen again.',
+        'action "remove" deletes the layer; "duplicate" copies it just above itself (text gets its own caption); "move_to" puts it at stacking position `to` (0 = bottom). Layer numbers above the change shift, so the result lists the screen again: use the new numbers for further edits (when removing several layers from one screen, remove the highest number first).',
       inputSchema: {
         screen: screenId,
         layer: layerIndex,
@@ -475,7 +529,7 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
     {
       title: "Add, copy, remove or reorder screens",
       description:
-        'action "add" inserts a screen after `screen` (default: last) copying its layout with placeholder captions and no screenshot; "duplicate" copies `screen` with its own captions; "remove" deletes it; "move_to" puts it at position `to` (0 = first in the listing); "apply_layout_to_all" copies its background and layer positions onto every other screen, keeping their text and screenshots.',
+        'action "add" inserts a screen after `screen` (default: last) copying its layout with placeholder captions and no screenshot; "duplicate" copies `screen` with its own captions; "remove" deletes it; "move_to" puts it at position `to` (0 = first in the listing); "apply_layout_to_all" copies its background and layers onto every other screen, keeping their text and screenshots (it overwrites their design, so use it only when asked to make every screen match).',
       inputSchema: {
         action: z.enum(["add", "duplicate", "remove", "move_to", "apply_layout_to_all"]),
         screen: z.string().optional().describe("The screen to act on (for add: the one to insert after)"),
@@ -525,10 +579,10 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
   server.registerTool(
     "storeshots_set_background",
     {
-      title: "Set a screen's background",
-      description: "Sets a solid colour or a linear gradient background on one screen, or on every screen with screen \"*\". Colours can be #hex or $themeColor.",
+      title: "Set screens' backgrounds",
+      description: 'Sets a solid colour or a linear gradient background on one screen, several, or every screen ("*"). Colours can be #hex or "$name" for a theme colour, which keeps them linked to the theme.',
       inputSchema: {
-        screen: z.string().describe('Screen id, or "*" for every screen'),
+        screen: z.union([z.string(), z.array(z.string()).min(1)]).describe('A screen id, a list of screen ids, or "*" for every screen'),
         color: color.optional().describe("Solid background colour"),
         gradient: z
           .object({
@@ -546,15 +600,15 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
         if (!c === !gradient) throw new Error("pass exactly one of color or gradient");
         const folder = folderFor(project_dir);
         const { project } = await folder.edit((p) => {
-          const targets = screen === "*" ? p.screens : [ops.getScreen(p, screen)];
+          const targets = screen === "*" ? p.screens : (Array.isArray(screen) ? screen : [screen]).map((id) => ops.getScreen(p, id));
           for (const s of targets) {
             s.background = c
               ? { type: "solid", color: c }
               : { type: "linear-gradient", angle: gradient!.angle, stops: gradient!.stops.map((s) => [s.color, s.at] as [string, number]) };
           }
         });
-        const first = screen === "*" ? project.screens[0]!.id : screen;
-        return afterEdit(folder, project, `set background on ${screen === "*" ? "every screen" : screen}`, first, []);
+        const first = screen === "*" ? project.screens[0]!.id : Array.isArray(screen) ? screen[0]! : screen;
+        return afterEdit(folder, project, `set background on ${screen === "*" ? "every screen" : [screen].flat().join(", ")}`, first, []);
       } catch (e) {
         return fail(e);
       }
@@ -564,28 +618,39 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
   server.registerTool(
     "storeshots_set_theme",
     {
-      title: "Set theme colours and fonts",
-      description:
-        "Adds or changes theme colours and fonts. Layers that use $name pick up the change on every screen, so this is the way to restyle a whole listing (e.g. change $brand). Fonts are file paths under fonts/; bundled fonts are copied in.",
+      title: "Manage theme colours and fonts",
+      description: `${THEME} This tool adds, changes, renames and removes theme colours, and sets theme fonts ("$heading", "$body" in text layers' font). Changing a colour restyles every screen that uses it, so it's the way to restyle a whole listing (e.g. change "brand"). Renaming updates every reference; removing one leaves its colour in place as a plain #hex wherever it was used. "brand" can't be removed: templates build their colours from it. Fonts are file paths under fonts/; bundled fonts are copied in. Returns the theme with how often each colour is used.`,
       inputSchema: {
-        colors: z.record(z.string(), z.string()).optional().describe('e.g. {"brand": "#2F6FEB"}'),
+        colors: z.record(z.string(), color).optional().describe('Colours to add or change, by name without $: {"brand": "#2F6FEB", "accent": "#FFB020"}. A value can itself be "$other".'),
+        rename_colors: z.record(z.string(), z.string().regex(ops.THEME_COLOR_NAME)).optional().describe('Old name to new name, without $: {"brandSoft": "sky"}'),
+        remove_colors: z.array(z.string()).optional().describe('Names to remove, without $: ["onBrandMuted"]'),
         fonts: z.record(z.string(), z.string()).optional().describe('e.g. {"heading": "fonts/DMSerifDisplay-Regular.ttf"}'),
         project_dir: projectDir,
       },
       annotations: write,
     },
-    async ({ colors, fonts, project_dir }) => {
+    async ({ colors, rename_colors, remove_colors, fonts, project_dir }) => {
       try {
         const folder = folderFor(project_dir);
         const { project } = await folder.edit(async (p) => {
+          for (const name of Object.keys(colors ?? {})) {
+            if (!ops.THEME_COLOR_NAME.test(name)) throw new Error(`"${name}" isn't a valid colour name: use letters, digits, _ or -, starting with a letter, without $`);
+          }
           Object.assign(p.theme.colors, colors ?? {});
+          for (const [from, to] of Object.entries(rename_colors ?? {})) ops.renameThemeColor(p, from.replace(/^\$/, ""), to);
+          for (const name of remove_colors ?? []) {
+            const n = name.replace(/^\$/, "");
+            if (n === "brand") throw new Error('"brand" can\'t be removed: templates build their colours from it. Change its value instead.');
+            if (!(n in p.theme.colors)) throw new Error(`no theme colour "${n}"; they are ${Object.keys(p.theme.colors).join(", ")}`);
+            ops.deleteThemeColor(p, n);
+          }
           for (const [k, v] of Object.entries(fonts ?? {})) {
             await ensureFont(folder, v);
             p.theme.fonts[k] = v;
           }
         });
         const cache = folder.cache();
-        const lines = [`theme colours: ${Object.entries(project.theme.colors).map(([k, v]) => `$${k} ${v}`).join(" · ")}`, `theme fonts: ${Object.entries(project.theme.fonts).map(([k, v]) => `$${k} ${v}`).join(" · ")}`, "screens:"];
+        const lines = [`theme colours: ${themeLine(project)}`, `theme fonts: ${Object.entries(project.theme.fonts).map(([k, v]) => `$${k} ${v}`).join(" · ")}`, "screens:"];
         for (const [n, s] of project.screens.entries()) lines.push(screenSummary(project, s, await inspectScreen(project, { screen: s.id }, cache).catch(() => null), n + 1));
         return ok(lines.join("\n"));
       } catch (e) {
@@ -599,23 +664,25 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
     {
       title: "Apply a template",
       description:
-        "Re-lays out screens with a starter template (headline, editorial, tilt, flip), keeping every screen's captions and screenshots. Optionally sets the brand colour first. Copies the template's fonts into the project.",
+        'Re-lays out screens with a starter template (headline, editorial, tilt, flip), keeping their captions and screenshots. On every screen (the default), the template also becomes the theme: its fonts and colours replace the theme\'s, so later theme changes restyle everything. With "screens", only those screens change: they get the template\'s fonts and colours as plain values (still linked to $brand), and the theme and other screens stay as they are. Optionally sets the brand colour first. Copies the template\'s fonts into the project.',
       inputSchema: {
         template: z.enum(ops.TEMPLATES.map((t) => t.id) as [string, ...string[]]),
+        screens: z.array(z.string()).min(1).optional().describe("Only these screen ids; default every screen"),
         brand: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().describe("Brand colour, #RRGGBB"),
         project_dir: projectDir,
       },
       annotations: { ...write, destructiveHint: true },
     },
-    async ({ template, brand, project_dir }) => {
+    async ({ template, screens, brand, project_dir }) => {
       try {
         const folder = folderFor(project_dir);
         const { project } = await folder.edit(async (p) => {
+          for (const id of screens ?? []) ops.getScreen(p, id);
           if (brand) p.theme.colors.brand = brand;
-          for (const f of ops.applyTemplate(p, template)) await ensureFont(folder, `fonts/${f}`);
+          for (const f of ops.applyTemplate(p, template, screens)) await ensureFont(folder, `fonts/${f}`);
         });
         const cache = folder.cache();
-        const lines = [`applied template ${template}`, "screens:"];
+        const lines = [`applied template ${template} to ${screens ? screens.join(", ") : "every screen"}`, "screens:"];
         for (const [n, s] of project.screens.entries()) lines.push(screenSummary(project, s, await inspectScreen(project, { screen: s.id }, cache).catch(() => null), n + 1));
         return ok(lines.join("\n"));
       } catch (e) {

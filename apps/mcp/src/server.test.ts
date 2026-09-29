@@ -194,6 +194,60 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
     expect(render.text).toContain("rendered 1 image");
   }, 120_000);
 
+  it("changes several layers at once, each only where the field fits", async () => {
+    const r = await call("storeshots_update_layer", {
+      layers: [
+        { screen: "progress", layer: 0 },
+        { screen: "timeline", layer: 0 },
+        { screen: "timeline", layer: 3 },
+      ],
+      set: { font: "fonts/DMSerifDisplay-Regular.ttf", opacity: 0.9 },
+    });
+    expect(r.error).toBe(false);
+    expect(r.text).toMatch(/timeline \[3\] is a device layer: skipped font/);
+    const doc = await saved();
+    const screen = (id: string) => doc.screens.find((s: { id: string }) => s.id === id);
+    expect(screen("progress").layers[0].font).toBe("fonts/DMSerifDisplay-Regular.ttf");
+    expect(screen("timeline").layers[0].font).toBe("fonts/DMSerifDisplay-Regular.ttf");
+    expect(screen("timeline").layers[3].opacity).toBe(0.9);
+  });
+
+  it("refuses a field that fits none of the layers", async () => {
+    const r = await call("storeshots_update_layer", { layers: [{ screen: "progress", layer: 2 }], set: { font_size: 60 } });
+    expect(r.error).toBe(true);
+    expect(r.text).toMatch(/font_size can't be set on any of these layers \(device\)/);
+  });
+
+  it("sets the background of several screens", async () => {
+    const r = await call("storeshots_set_background", { screen: ["progress", "profile"], color: "$ink" });
+    expect(r.error).toBe(false);
+    const doc = await saved();
+    const bg = (id: string) => doc.screens.find((s: { id: string }) => s.id === id).background.color;
+    expect([bg("progress"), bg("profile"), bg("timeline")]).toEqual(["$ink", "$ink", "$cream"]);
+  });
+
+  it("renames and removes theme colours, keeping what used them", async () => {
+    const r = await call("storeshots_set_theme", { colors: { accent: "#FFB020" }, rename_colors: { cream: "paper" }, remove_colors: ["brandLight"] });
+    expect(r.error).toBe(false);
+    expect(r.text).toMatch(/\$paper #FDF1E3 \(used [1-9]\d*×\)/);
+    expect(r.text).toMatch(/\$accent #FFB020 \(used 0×\)/);
+    const doc = await saved();
+    expect(doc.screens.find((s: { id: string }) => s.id === "timeline").background.color).toBe("$paper");
+    expect(JSON.stringify(doc)).not.toContain("$brandLight");
+    expect((await call("storeshots_set_theme", { remove_colors: ["brand"] })).error).toBe(true);
+  });
+
+  it("applies a template to some screens without touching the theme", async () => {
+    const before = await saved();
+    const r = await call("storeshots_apply_template", { template: "tilt", screens: ["timeline"] });
+    expect(r.error).toBe(false);
+    const doc = await saved();
+    expect(doc.theme).toEqual(before.theme);
+    const byId = (d: { screens: Array<{ id: string }> }, id: string) => d.screens.find((s) => s.id === id);
+    expect(byId(doc, "progress")).toEqual(byId(before, "progress"));
+    expect(byId(doc, "timeline")).not.toEqual(byId(before, "timeline"));
+  });
+
   it("applies a template, keeping captions", async () => {
     const r = await call("storeshots_apply_template", { template: "editorial", brand: "#0E9F6E" });
     expect(r.error).toBe(false);

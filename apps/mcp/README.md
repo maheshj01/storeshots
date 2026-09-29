@@ -63,14 +63,14 @@ published.
 | `storeshots_get_project` | Overview: targets, locales, theme, fonts, frames, templates, screenshots, and each screen with a problem count. Start here. |
 | `storeshots_inspect_screen` | One screen as it will render, layer by layer, with findings. `format: "json"` for code. |
 | `storeshots_check` | Every screen, locale and target against layout checks and store rules. Lists problems only. |
-| `storeshots_update_layer` | Change position, size, rotation, opacity, text, font, colour, alignment, frame, finish, screenshot, shape or radius. |
+| `storeshots_update_layer` | Change position, size, rotation, opacity, text, font, colour, alignment, frame, finish, screenshot, shape or radius, on one layer or several at once (`layers`), even across screens. |
 | `storeshots_add_layer` | Add text, device, shape or image, with initial properties. |
 | `storeshots_arrange_layer` | Remove, duplicate or restack a layer. |
 | `storeshots_align_layer` | Line up what a layer draws (text ink, phone body) with the canvas edges or centre. |
-| `storeshots_edit_screens` | Add, duplicate, remove or reorder screens; apply one screen's layout to all. |
-| `storeshots_set_background` | Solid or gradient background, on one screen or all. |
-| `storeshots_set_theme` | Theme colours and fonts; restyles every screen that uses them. |
-| `storeshots_apply_template` | Re-lay out every screen with a starter template, keeping captions and screenshots. |
+| `storeshots_edit_screens` | Add, duplicate, remove or reorder screens; copy one screen's layout to all. |
+| `storeshots_set_background` | Solid or gradient background, on one screen, several, or all. |
+| `storeshots_set_theme` | Add, change, rename or remove theme colours; set theme fonts. Restyles every screen that uses them. |
+| `storeshots_apply_template` | Re-lay out every screen, or just some, with a starter template, keeping captions and screenshots. |
 | `storeshots_import_capture` | Copy a screenshot into `captures/<locale>/` and put it on a phone. |
 | `storeshots_import_frame` | Import an exact bezel from this machine: Xcode's Simulator (iPhone, iPad) or an Android SDK skin; optionally switch matching phones to it. |
 | `storeshots_render` | Write store-ready files to `store/`. Preview images only when asked. |
@@ -78,6 +78,29 @@ published.
 Positions and sizes are output pixels of the target (default: the first
 one), with x,y at the top-left. Layers are numbered from the bottom,
 starting at 0.
+
+### Theme colours
+
+A project's theme colours are its design system: named colours such as
+`brand`, `ink` or `paper`. Anywhere a colour goes, `"$name"` refers to one,
+so changing the theme colour restyles every background and layer that
+uses it, on every screen. `storeshots_get_project` lists them with how
+often each is used; `storeshots_set_theme` adds, changes, renames (every
+reference follows) and removes them (what used a removed colour keeps it
+as a plain `#hex`). The web editor shows the same colours under **Theme
+colours** when nothing is selected.
+
+### Changing several things at once
+
+- `storeshots_update_layer` with `layers: [{screen, layer}, …]` changes
+  them all in one step, say every caption's font. Each layer gets only the
+  fields its type has (a font goes to text, not phones); the result lists
+  what was skipped.
+- `storeshots_set_background` takes a list of screens, or `"*"`.
+- `storeshots_apply_template` with `screens` re-lays out only those
+  screens: they get the template's colours and fonts as plain values, and
+  the theme and the other screens stay as they are. Without `screens`,
+  every screen changes and the template becomes the theme.
 
 ## What a screen looks like to an agent
 
