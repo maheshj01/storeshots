@@ -8,6 +8,7 @@ import {
 } from "../state/actions.ts";
 import { BUNDLED_FONTS, TEMPLATES, themeColorUses } from "@storeshots/ops";
 import { decodeImage } from "../engine/host.ts";
+import { DeviceExport } from "./DeviceExport.tsx";
 import { ColorField, NumberField, Section, Segmented, TextInput, Toggle, useResolvedColor } from "./fields.tsx";
 
 /** A value shared by every selected item, or `mixed` (showing the primary's) when they differ. */
@@ -277,6 +278,7 @@ function LayerInspector({ layers }: { layers: Layer[] }) {
           <NumberField label="%" title="Opacity" min={0} max={100} value={opacity.value * 100} mixed={opacity.mixed} onChange={(v) => up("Opacity", (l) => void (l.opacity = v / 100))} />
         </div>
       </Section>
+      {single && layer.type === "device" && <DeviceExport screen={sel.screen!} layer={index} />}
     </>
   );
 }

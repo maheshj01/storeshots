@@ -166,6 +166,54 @@ export async function renderScreen(
   return { canvas, target, screen, warnings };
 }
 
+export interface DeviceRenderRequest {
+  screen: string;
+  /** The device layer's number on the screen, 0 = bottom. */
+  layer: number;
+  target: string;
+  locale: string;
+  /** 1 renders the screen area at the screenshot's own pixel size. Previews use less. */
+  scale?: number;
+  /** Draw the drop shadow (with room for it around the phone). Default: the layer's setting. */
+  shadow?: boolean;
+  missingCapture?: "error" | "placeholder";
+}
+
+/**
+ * One device layer on its own: the phone with its screenshot, upright, on a
+ * transparent background, with the screen at the screenshot's own
+ * resolution. For a framed screenshot to use outside the store listing.
+ */
+export async function renderDevice(project: Project, req: DeviceRenderRequest, cache: AssetCache): Promise<{ canvas: CanvasLike; warnings: RenderWarning[] }> {
+  const screen = project.screens.find((s) => s.id === req.screen);
+  if (!screen) throw new Error(`unknown screen "${req.screen}"`);
+  const layer = screen.layers[req.layer];
+  if (!layer) throw new Error(`screen "${req.screen}" has no layer ${req.layer}`);
+  if (layer.type !== "device") throw new Error(`layer ${req.layer} of "${req.screen}" is a ${layer.type} layer, not a device`);
+  const target = project.targets.find((t) => t.id === req.target);
+  if (!target) throw new Error(`unknown target "${req.target}"`);
+  const frame = await cache.frame(frameIdFor(layer, target));
+  const found = layer.capture ? await cache.capture(project, layer.capture, req.locale) : null;
+  // Screen pixels per frame unit, so the screenshot lands at its own size.
+  const shotW = found?.image.width ?? frame.display[0];
+  const unit = (shotW / frame.screen.w) * (req.scale ?? 1);
+  const [fw, fh] = frame.kind === "vector" ? [frame.body.w, frame.body.h] : frame.size;
+  const w = fw * unit;
+  const h = fh * unit;
+  const shadow = req.shadow ?? layer.shadow;
+  // Room for side buttons, and for the shadow's blur and drop when drawn.
+  const pad = Math.ceil(w * (shadow ? 0.12 : 0.03));
+  const W = Math.ceil(w + 2 * pad);
+  const H = Math.ceil(h + 2 * pad + (shadow ? w * 0.03 : 0));
+  const canvas = cache.host.createCanvas(W, H);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("2d context unavailable");
+  const warnings: RenderWarning[] = [];
+  const env: DrawEnv = { project, target, locale: req.locale, cache, ctx, W, H, warnings, missingCapture: req.missingCapture ?? "error" };
+  await drawDevice(env, { ...layer, shadow, rotate: 0, opacity: 1 }, { x: pad, y: pad, w, h }, `${screen.id}.layers[${req.layer}]`);
+  return { canvas, warnings };
+}
+
 interface DrawEnv {
   project: Project;
   target: Target;

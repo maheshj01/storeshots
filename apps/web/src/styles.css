@@ -80,6 +80,8 @@ textarea.input { height: auto; min-height: 64px; padding: 6px 8px; resize: verti
   background-size: 8px 8px; background-position: 0 0, 4px 4px; }
 .swatch i { position: absolute; inset: 0; }
 .swatch input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.device-export { display: grid; place-items: center; padding: 12px; border-radius: var(--radius); background-color: #fff; background-image: conic-gradient(#eceef1 25%, transparent 0 50%, #eceef1 0 75%, transparent 0); background-size: 14px 14px; border: 1px solid var(--rule); }
+.device-export canvas { display: block; max-width: 100%; max-height: 300px; width: auto; height: auto; }
 .linked { display: flex; align-items: center; gap: 6px; min-width: 0; height: 30px; padding: 0 2px 0 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--panel-2); font-size: 12px; }
 .linked svg { width: 13px; height: 13px; flex: none; color: var(--proof); }
 .linked b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
