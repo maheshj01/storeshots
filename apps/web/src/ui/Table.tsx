@@ -157,19 +157,12 @@ export function Table() {
   /**
    * Screens wrap into a grid as wide as the window, so a whole listing can
    * be browsed at a glance; the row keeps them in one line, in store order.
+   * The column count is chosen when the grid is fitted to the window, and
+   * stays put while zooming, so the grid scales without rearranging.
    */
   const [layout, setLayoutState] = useState<Layout>(savedLayout);
-  const [viewW, setViewW] = useState(() => Math.max(400, window.innerWidth - 580));
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    setViewW(el.clientWidth);
-    const ro = new ResizeObserver(() => setViewW(el.clientWidth));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  // The add-screen tile counts as one more cell.
-  const cols = layout === "grid" ? gridColumns(viewW, w, doc.screens.length + 1) : doc.screens.length + 1;
+  const [gridCols, setGridCols] = useState(4);
+  const cols = layout === "grid" ? gridCols : doc.screens.length + 1;
 
   const setIssues = useMemo(
     () => checkSet({ store: target.store, device: target.device, images: doc.screens.map(() => ({ width: target.size[0], height: target.size[1] })) }),
@@ -318,10 +311,13 @@ export function Table() {
     const { doc, selection, zoom: current } = useEditor.getState();
     if (!doc) return;
     const index = Math.max(0, doc.screens.findIndex((s) => s.id === selection.screen));
+    const aspect = target.size[0] / target.size[1];
     const next =
       mode === "grid"
-        ? gridFitZoom(el.clientWidth, el.clientHeight, target.size[0] / target.size[1], doc.screens.length)
+        ? gridFitZoom(el.clientWidth, el.clientHeight, aspect, doc.screens.length)
         : Math.min(3, Math.max(0.25, (el.clientHeight - 56 - 110) / BASE_HEIGHT));
+    // The add-screen tile counts as one more cell.
+    if (mode === "grid") setGridCols(gridColumns(el.clientWidth, Math.round(BASE_HEIGHT * next * aspect), doc.screens.length + 1));
     // A grid that fits is shown from its first screen; otherwise, the selected one.
     homeNext.current = mode === "grid" && next > 0.25 ? 0 : index;
     if (Math.abs(next - current) < 1e-6) setHomeTick((t) => t + 1);
