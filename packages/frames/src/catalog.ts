@@ -121,6 +121,8 @@ interface IphoneSpec {
   display: [number, number];
   /** Dynamic Island width in points; Apple doesn't publish it. */
   islandPt: number;
+  /** Dynamic Island height and distance from the top of the screen, in points. */
+  island?: { h: number; top: number };
   variants: VectorFrame["variants"];
   defaultVariant: string;
   source: string;
@@ -147,7 +149,10 @@ function iphone(spec: IphoneSpec): VectorFrame {
     display: spec.display,
     body: { ...spec.body, radius: pt(62) + (spec.body.w - sw) / 2, rim: 0.8 },
     screen: { ...s, radius: pt(62) },
-    cutout: { type: "island", cx: sw / 2, cy: pt(11) + pt(37) / 2, w: pt(spec.islandPt), h: pt(37) },
+    cutout: (() => {
+      const { h, top } = spec.island ?? { h: 37, top: 11 };
+      return { type: "island" as const, cx: sw / 2, cy: pt(top) + pt(h) / 2, w: pt(spec.islandPt), h: pt(h) };
+    })(),
     buttons: [
       { side: "left", ...at(24, 31), depth: 0.55 },
       { side: "left", ...at(37, 47), depth: 0.55 },
@@ -192,6 +197,43 @@ const iphone18ProMax = () =>
     source: "apple.com/iphone-18-pro/specs (Sept 2026): 163.4 × 78.0 mm, 6.9-inch 2868 × 1320 at 460 ppi; smaller Dynamic Island, size estimated",
   });
 
+// iPhone 17 Pro's Dynamic Island: 126 × 37.33 pt, 13.67 pt from the top of
+// the screen, measured from Simulator screenshots that show it. Screenshots
+// like those line up with this frame's island; on iPhone 18 Pro's smaller
+// one the two shapes collide.
+const IPHONE_17_PRO_ISLAND = { h: 37.33, top: 13.67 };
+const IPHONE_17_PRO_VARIANTS = {
+  "cosmic-orange": { body: "#D9692E", rim: "#EE8A55", button: "#C45C26" },
+  "deep-blue": { body: "#2B3A52", rim: "#46597A", button: "#233046" },
+  silver: { body: "#DADADC", rim: "#F2F2F4", button: "#C9C9CC" },
+};
+
+const iphone17Pro = () =>
+  iphone({
+    id: "iphone-17-pro",
+    name: "iPhone 17 Pro",
+    body: { w: 71.9, h: 150.0 },
+    display: [1206, 2622],
+    islandPt: 126,
+    island: IPHONE_17_PRO_ISLAND,
+    variants: IPHONE_17_PRO_VARIANTS,
+    defaultVariant: "deep-blue",
+    source: "apple.com/iphone-17-pro/specs (Sept 2025): 150.0 × 71.9 mm, 6.3-inch 2622 × 1206 at 460 ppi; Dynamic Island 126 × 37.33 pt",
+  });
+
+const iphone17ProMax = () =>
+  iphone({
+    id: "iphone-17-pro-max",
+    name: "iPhone 17 Pro Max",
+    body: { w: 78.0, h: 163.4 },
+    display: [1320, 2868],
+    islandPt: 126,
+    island: IPHONE_17_PRO_ISLAND,
+    variants: IPHONE_17_PRO_VARIANTS,
+    defaultVariant: "deep-blue",
+    source: "apple.com/iphone-17-pro/specs (Sept 2025): 163.4 × 78.0 mm, 6.9-inch 2868 × 1320 at 460 ppi; Dynamic Island 126 × 37.33 pt",
+  });
+
 const iphoneAir = () =>
   iphone({
     id: "iphone-air",
@@ -216,6 +258,8 @@ export const CATALOG: readonly VectorFrame[] = [
   iphone18Pro(),
   iphone18ProMax(),
   iphoneAir(),
+  iphone17Pro(),
+  iphone17ProMax(),
 ];
 
 export function findFrame(id: string): VectorFrame | undefined {
