@@ -82,14 +82,54 @@ async function walk(dir: FileSystemDirectoryHandle, base: string, out: Map<strin
   }
 }
 
+/**
+ * The folder a project lives in, inside an app's repository:
+ *
+ *   my-app/                 the folder people pick
+ *     store-assets/         the project: storeshots.json, captures/, fonts/, frames/
+ */
+export const PROJECT_FOLDER = "store-assets";
+
+async function hasEntry(dir: FileSystemDirectoryHandle, name: string, kind: "file" | "directory"): Promise<boolean> {
+  try {
+    if (kind === "file") await dir.getFileHandle(name);
+    else await dir.getDirectoryHandle(name);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isEmpty(dir: FileSystemDirectoryHandle): Promise<boolean> {
+  for await (const name of (dir as unknown as { keys(): AsyncIterable<string> }).keys()) {
+    if (name !== ".DS_Store") return false;
+  }
+  return true;
+}
+
+/**
+ * Where the project is for a folder someone picked: the folder itself when
+ * it holds a storeshots.json (or is empty, or is a store-assets folder), and
+ * otherwise its store-assets subfolder, so picking an app's repository works.
+ * With `create`, makes store-assets when it isn't there yet.
+ */
+export async function projectFolderIn(picked: FileSystemDirectoryHandle, create: boolean): Promise<FileSystemDirectoryHandle | null> {
+  if (await hasEntry(picked, "storeshots.json", "file")) return picked;
+  if (await hasEntry(picked, PROJECT_FOLDER, "directory")) return picked.getDirectoryHandle(PROJECT_FOLDER);
+  if (picked.name === PROJECT_FOLDER || (await isEmpty(picked))) return create ? picked : null;
+  return create ? picked.getDirectoryHandle(PROJECT_FOLDER, { create: true }) : null;
+}
+
+/** Opens a project from a folder: the project folder itself, or an app folder with store-assets in it. */
 export async function openFolder(): Promise<LoadedProject & { handle: FileSystemDirectoryHandle }> {
   const picker = (window as unknown as { showDirectoryPicker(o: object): Promise<FileSystemDirectoryHandle> }).showDirectoryPicker;
-  const handle = await picker({ mode: "readwrite", id: "storeshots-project" });
+  const picked = await picker({ mode: "readwrite", id: "storeshots-project" });
+  const handle = await projectFolderIn(picked, false);
+  if (!handle || !(await hasEntry(handle, "storeshots.json", "file"))) {
+    throw new Error(`No storeshots.json in ${picked.name} or ${picked.name}/${PROJECT_FOLDER}. Pick your app's folder, or the folder that contains storeshots.json.`);
+  }
   const files = new Map<string, Blob>();
   await walk(handle, "", files);
-  if (!files.has("storeshots.json")) {
-    throw new Error(`${handle.name} has no storeshots.json. Pick the folder that contains it, or start a new project and save it there.`);
-  }
   return { ...(await finish(files, handle.name)), handle };
 }
 

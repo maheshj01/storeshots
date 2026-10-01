@@ -65,7 +65,7 @@ export function Home() {
             <Plus aria-hidden /> New project
           </button>
           {canUseFolders && (
-            <button type="button" className="btn" onClick={fromFolder} title="Open a folder with a storeshots.json, e.g. inside your app's repo">
+            <button type="button" className="btn" onClick={fromFolder} title="Open your app's folder (its store-assets project) or any folder with a storeshots.json">
               <FolderOpen aria-hidden /> Open folder
             </button>
           )}

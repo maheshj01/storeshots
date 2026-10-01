@@ -102,7 +102,7 @@ function FolderStatus() {
       <button
         type="button"
         className="btn hide-narrow"
-        title="Save this project into a folder (e.g. in your app's repo) and keep it in sync, so AI agents and the CLI can work on it"
+        title="Pick your app's folder: the project is saved in store-assets inside it and kept in sync, so AI agents and the CLI can work on it"
         onClick={async () => {
           try {
             const name = await linkFolder();

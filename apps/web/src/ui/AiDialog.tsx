@@ -183,8 +183,9 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
           <details className="alt" open={files} onToggle={(e) => setFiles((e.target as HTMLDetailsElement).open)}>
             <summary>Prefer keeping the project as files in your app's repo?</summary>
             <p className="hint">
-              Link the project to a folder and point the server at it. The editor and the folder stay in sync both ways, so this also
-              works with the agent running while the editor is closed, and with git.
+              Link the project to your app's folder: it's saved in <code>store-assets</code> inside it, and the editor and the folder
+              stay in sync both ways. Point the server at that folder, so this also works with the agent running while the editor is
+              closed, and with git.
             </p>
             {folder ? (
               <p className="hint">

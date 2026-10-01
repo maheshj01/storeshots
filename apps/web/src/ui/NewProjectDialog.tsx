@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { TEMPLATES, newProject } from "@storeshots/ops";
+import { STORE_STARTS, TEMPLATES, newProject, type StoreStart } from "@storeshots/ops";
 import { fetchBundledFonts } from "../state/fonts.ts";
 import { renderStandalone } from "../engine/preview.ts";
 import { newProjectId, saveAssets, saveDoc } from "../state/persist.ts";
@@ -9,12 +9,12 @@ import { toast } from "./toast.ts";
 
 const BRANDS = ["#E0237A", "#2F6FEB", "#0E9F6E", "#F0561F", "#7C3AED", "#111418"];
 
-function TemplatePreview({ id, brand }: { id: string; brand: string }) {
+function TemplatePreview({ id, brand, store }: { id: string; brand: string; store: StoreStart }) {
   const [src, setSrc] = useState<string>();
   useEffect(() => {
     let live = true;
     (async () => {
-      const { doc, fonts } = newProject("Preview", id, brand);
+      const { doc, fonts } = newProject("Preview", id, brand, store);
       const assets = new Map(await fetchBundledFonts(fonts));
       const url = await renderStandalone(doc, assets, doc.screens[0]!.id, 0.22);
       if (live) setSrc(url);
@@ -23,7 +23,7 @@ function TemplatePreview({ id, brand }: { id: string; brand: string }) {
     return () => {
       live = false;
     };
-  }, [id, brand]);
+  }, [id, brand, store]);
   return src ? <img src={src} alt="" /> : <div className="ph" />;
 }
 
@@ -31,12 +31,13 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("My app");
   const [template, setTemplate] = useState(TEMPLATES[0]!.id);
   const [brand, setBrand] = useState(BRANDS[0]!);
+  const [store, setStore] = useState<StoreStart>("appstore");
   const [busy, setBusy] = useState(false);
 
   const create = async () => {
     setBusy(true);
     try {
-      const { doc, fonts } = newProject(name.trim() || "Untitled", template, brand);
+      const { doc, fonts } = newProject(name.trim() || "Untitled", template, brand, store);
       const assets = await fetchBundledFonts(fonts);
       const id = newProjectId();
       await saveAssets(id, assets);
@@ -87,18 +88,31 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <div className="field">
+            <span>Store</span>
+            <div className="seg" role="group" aria-label="Store">
+              {(Object.keys(STORE_STARTS) as StoreStart[]).map((k) => (
+                <button key={k} type="button" aria-pressed={store === k} onClick={() => setStore(k)} title={STORE_STARTS[k].detail}>
+                  {STORE_STARTS[k].label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="field">
             <span>Template</span>
             <div className="templates">
               {TEMPLATES.map((t) => (
                 <button key={t.id} type="button" className="template" aria-pressed={template === t.id} onClick={() => setTemplate(t.id)}>
-                  <TemplatePreview id={t.id} brand={brand} />
+                  <TemplatePreview id={t.id} brand={brand} store={store} />
                   <b>{t.name}</b>
                   <small>{t.blurb}</small>
                 </button>
               ))}
             </div>
           </div>
-          <p className="hint">Starts as a Google Play phone listing at 1080 × 1920 with four screens. You can change everything later.</p>
+          <p className="hint">
+            Starts as {store === "appstore" ? "an" : "a"} {STORE_STARTS[store].label} listing ({STORE_STARTS[store].detail}) with four screens. You can change
+            everything later.
+          </p>
         </div>
         <footer>
           <button type="button" className="btn" onClick={onClose}>
