@@ -160,24 +160,42 @@ const PLACEHOLDER_CAPTIONS = [
 ];
 
 /** A new project: one Play phone target and four screens waiting for captures. */
-export function newProject(name: string, templateId: string, brand: string): { doc: Project; fonts: string[] } {
+/** Where a new project's listing goes: its first target and phone frame. */
+export const STORE_STARTS = {
+  appstore: {
+    label: "App Store",
+    detail: "iPhone 6.9-inch, 1320 × 2868",
+    target: { id: "ios-6.9", store: "appstore", device: "iphone-6.9", size: [1320, 2868], format: "png" },
+    frame: "iphone-18-pro-max",
+  },
+  play: {
+    label: "Google Play",
+    detail: "Phone, 1080 × 1920",
+    target: { id: "play-phone", store: "play", device: "phone", size: [1080, 1920], format: "png" },
+    frame: DEFAULT_FRAME,
+  },
+} as const satisfies Record<string, { label: string; detail: string; target: Project["targets"][number]; frame: string }>;
+
+export type StoreStart = keyof typeof STORE_STARTS;
+
+export function newProject(name: string, templateId: string, brand: string, store: StoreStart = "play"): { doc: Project; fonts: string[] } {
   const t = findTemplate(templateId);
-  const W = 1080;
-  const H = 1920;
+  const start = STORE_STARTS[store];
+  const [W, H] = start.target.size;
   const screens: Screen[] = [];
   const captions: Project["captions"] = {};
   PLACEHOLDER_CAPTIONS.forEach(([title, sub], i) => {
     const id = `screen-${i + 1}`;
     captions[`${id}.title`] = { en: title! };
     captions[`${id}.sub`] = { en: sub! };
-    const ctx: LayoutContext = { aspect: W / H, titleKey: `${id}.title`, subKey: `${id}.sub`, capture: "", frame: DEFAULT_FRAME };
+    const ctx: LayoutContext = { aspect: W / H, titleKey: `${id}.title`, subKey: `${id}.sub`, capture: "", frame: start.frame };
     screens.push({ id, ...t.screen(i, ctx) });
   });
   const doc: Project = {
     schemaVersion: 1,
     name,
     locales: { default: "en", list: ["en"] },
-    targets: [{ id: "play-phone", store: "play", device: "phone", size: [W, H], format: "png" }],
+    targets: [{ ...start.target, size: [W, H] }],
     theme: { fonts: { heading: `fonts/${t.fonts.heading}`, body: `fonts/${t.fonts.body}` }, colors: t.colors(brand) },
     screens,
     captions,

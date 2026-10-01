@@ -22,3 +22,12 @@ describe("applyTemplate", () => {
     expect(JSON.stringify(doc.screens[0])).toContain('"$heading"');
   });
 });
+
+describe("newProject", () => {
+  it("starts an App Store listing with an iPhone that fits it", () => {
+    const { doc } = newProject("App", "headline", "#2F6FEB", "appstore");
+    expect(doc.targets[0]).toMatchObject({ store: "appstore", device: "iphone-6.9", size: [1320, 2868] });
+    const device = doc.screens[0]!.layers.find((l) => l.type === "device");
+    expect(device?.type === "device" && device.frame).toBe("iphone-18-pro-max");
+  });
+});
