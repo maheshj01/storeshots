@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AssetCache, renderScreen } from "@storeshots/core";
 import { useEditor } from "../state/store.ts";
-import { saveDoc, saveThumbnail } from "../state/persist.ts";
+import { deleteAssets, saveAssets, saveDoc, saveThumbnail } from "../state/persist.ts";
 import { deleteLayer, duplicateLayer, moveLayerTo, updateLayer } from "../state/actions.ts";
 import { assetHost } from "../engine/host.ts";
 import { useFolderSync } from "../engine/folderSync.ts";
@@ -13,6 +13,26 @@ import { Inspector } from "./Inspector.tsx";
 function typing(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement;
   return t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName);
+}
+
+/**
+ * Keeps the browser's copy of the project's files in step when files are
+ * removed (deleting a screenshot) or come back (undoing that). Files added
+ * the usual way are saved where they're added.
+ */
+function useAssetSync() {
+  const assets = useEditor((s) => s.assets);
+  const id = useEditor((s) => s.projectId);
+  const prev = useRef<{ id: string | null; assets: Map<string, Blob> } | null>(null);
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = { id, assets };
+    if (!id || !before || before.id !== id) return;
+    const gone = [...before.assets.keys()].filter((p) => !assets.has(p));
+    const back = [...assets].filter(([p]) => !before.assets.has(p));
+    void deleteAssets(id, gone);
+    void saveAssets(id, back);
+  }, [assets, id]);
 }
 
 /** Saves to IndexedDB shortly after each change, and refreshes the thumbnail now and then. */
@@ -47,6 +67,7 @@ function useAutosave(): boolean {
 
 export function Editor() {
   const saved = useAutosave();
+  useAssetSync();
   useFolderSync();
 
   useEffect(() => {

@@ -145,6 +145,18 @@ export async function writeFolderFile(root: FileSystemDirectoryHandle, path: str
   return file.getFile();
 }
 
+/** Deletes a file from a folder; a file that's already gone is fine. */
+export async function removeFolderFile(root: FileSystemDirectoryHandle, path: string): Promise<void> {
+  const parts = path.split("/");
+  try {
+    let dir = root;
+    for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p);
+    await dir.removeEntry(parts[parts.length - 1]!);
+  } catch (e) {
+    if ((e as DOMException).name !== "NotFoundError") throw e;
+  }
+}
+
 /** Every project file in a folder (skipping rendered output and tooling folders). */
 export async function readFolderFiles(root: FileSystemDirectoryHandle): Promise<Map<string, Blob>> {
   const files = new Map<string, Blob>();

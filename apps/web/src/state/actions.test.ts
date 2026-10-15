@@ -152,3 +152,36 @@ describe("multiple selection", () => {
     expect(S().doc!.screens.map((s) => s.background.type === "solid" && s.background.color)).toEqual(["#123456", false, "#123456", false]);
   });
 });
+
+describe("deleting screenshots", () => {
+  const shot = new Blob(["png"], { type: "image/png" });
+  const path = "captures/en/home.png";
+  const capturesOn = () => S().doc!.screens.flatMap((s) => s.layers.filter((l) => l.type === "device").map((l) => l.type === "device" && l.capture));
+
+  beforeEach(() => {
+    const { doc } = newProject("Test", "headline", "#E0237A");
+    for (const s of doc.screens.slice(0, 2)) for (const l of s.layers) if (l.type === "device") l.capture = "home.png";
+    S().open({ id: "p", doc, assets: new Map([[path, shot]]) });
+  });
+
+  it("removes the file and takes it off the phones, as one undo step", () => {
+    expect(A.deleteCapture("home.png")).toBe(2);
+    expect(S().assets.has(path)).toBe(false);
+    expect(capturesOn().filter(Boolean)).toEqual([]);
+    expect(S().unsavedAssets.has(path)).toBe(true); // so a linked folder drops it too
+
+    S().undo();
+    expect(S().assets.get(path)).toBe(shot);
+    expect(capturesOn().filter(Boolean)).toEqual(["home.png", "home.png"]);
+
+    S().redo();
+    expect(S().assets.has(path)).toBe(false);
+    expect(capturesOn().filter(Boolean)).toEqual([]);
+  });
+
+  it("keeps phones pointing at it while another language still has it", () => {
+    S().addAssets([["captures/de/home.png", shot]]);
+    expect(A.deleteCapture("home.png")).toBe(0);
+    expect(capturesOn().filter(Boolean)).toEqual(["home.png", "home.png"]);
+  });
+});

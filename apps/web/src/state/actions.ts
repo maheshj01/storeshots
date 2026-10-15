@@ -246,6 +246,31 @@ export async function fillWithCaptures(files: File[], startScreen?: string) {
   return stored.length;
 }
 
+/**
+ * Deletes a screenshot from the project, as one undoable step. Phones that
+ * showed it go back to an empty screen, unless another language still has a
+ * screenshot with that name. Returns how many phones it was taken off.
+ */
+export function deleteCapture(name: string): number {
+  const doc = S().doc;
+  if (!doc) return 0;
+  const path = `captures/${doc.locales.default}/${name}`;
+  const elsewhere = [...S().assets.keys()].some((p) => p !== path && p.startsWith("captures/") && p.endsWith(`/${name}`));
+  let uses = 0;
+  S().removeAssets(`Delete screenshot ${name}`, [path], (d) => {
+    if (elsewhere) return;
+    for (const screen of d.screens) {
+      for (const l of screen.layers) {
+        if (l.type === "device" && l.capture === name) {
+          l.capture = "";
+          uses++;
+        }
+      }
+    }
+  });
+  return uses;
+}
+
 /** Captures in the project, from the default locale folder. */
 export function captureList(assets: Map<string, Blob>, locale: string): string[] {
   const prefix = `captures/${locale}/`;

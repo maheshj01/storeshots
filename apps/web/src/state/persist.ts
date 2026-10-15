@@ -40,6 +40,10 @@ export async function saveAssets(id: string, entries: Array<[string, Blob]>) {
   if (entries.length) await setMany(entries.map(([p, b]) => [assetKey(id, p), b]), files);
 }
 
+export async function deleteAssets(id: string, paths: string[]) {
+  if (paths.length) await delMany(paths.map((p) => assetKey(id, p)), files);
+}
+
 export async function loadProject(id: string): Promise<{ doc: Project; assets: Map<string, Blob>; meta: ProjectMeta }> {
   const [text, m] = await Promise.all([get<string>(id, docs), get<ProjectMeta>(id, meta)]);
   if (!text || !m) throw new Error("This project is no longer in this browser's storage.");

@@ -4,7 +4,7 @@ import { parseProject, serializeProject, type Project } from "@storeshots/schema
 import { useEditor } from "../state/store.ts";
 import { applyExternalProject } from "../state/external.ts";
 import { saveAssets, saveDoc } from "../state/persist.ts";
-import { ensureWritable, projectFolderIn, readFolderFiles, writeFolderFile } from "../state/io.ts";
+import { ensureWritable, projectFolderIn, readFolderFiles, removeFolderFile, writeFolderFile } from "../state/io.ts";
 
 /**
  * Two-way sync between the open project and a folder on disk (Chromium's
@@ -133,7 +133,12 @@ async function save(s: SyncSession) {
     setStatus({ kind: "saving" });
     for (const path of unsavedAssets) {
       const blob = assets.get(path);
-      if (!blob) continue;
+      // A file taken out of the project (a deleted screenshot) leaves the folder too.
+      if (!blob) {
+        await removeFolderFile(s.handle, path);
+        s.seen.delete(path);
+        continue;
+      }
       const file = await writeFolderFile(s.handle, path, blob);
       s.seen.set(path, file.lastModified);
     }

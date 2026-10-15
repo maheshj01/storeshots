@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, Layers3, PanelLeftClose, PanelLeftOpen, Smartphone, Square, Type, Upload } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, Image as ImageIcon, Layers3, PanelLeftClose, PanelLeftOpen, Smartphone, Square, Type, Upload, X } from "lucide-react";
 import type { Project } from "@storeshots/schema";
 import { CATALOG, type VectorFrame } from "@storeshots/frames";
 import { frameAspect } from "@storeshots/core";
 import { isLayerSelected, useEditor, useSelectedScreen } from "../state/store.ts";
-import { addImageLayer, addLayer, captureList, fillWithCaptures, moveLayerTo, setCapture, storeCaptures, updateLayer } from "../state/actions.ts";
+import { addImageLayer, addLayer, captureList, deleteCapture, fillWithCaptures, moveLayerTo, setCapture, storeCaptures, updateLayer } from "../state/actions.ts";
 import { layerName, TYPE_LABEL } from "./layerName.ts";
 import { useObjectUrls } from "./useObjectUrls.ts";
 import { renderStandalone } from "../engine/preview.ts";
 import { decodeImage } from "../engine/host.ts";
+import { toast } from "./toast.ts";
 
 type Tab = "layers" | "screenshots" | "frames";
 
@@ -303,6 +304,17 @@ function Screenshots() {
     setCapture(screen.id, i, { name, width: bmp.width, height: bmp.height });
   };
 
+  const grid = useRef<HTMLDivElement>(null);
+  const remove = (name: string, index: number) => {
+    const uses = deleteCapture(name);
+    toast(`Deleted ${name}${uses ? `, and took it off ${uses} ${uses === 1 ? "phone" : "phones"}` : ""}. Undo with ⌘Z.`);
+    // Keep the keyboard on the list: focus the screenshot that took its place.
+    requestAnimationFrame(() => {
+      const thumbs = grid.current?.querySelectorAll<HTMLButtonElement>("button.thumb");
+      if (thumbs?.length) thumbs[Math.min(index, thumbs.length - 1)]!.focus();
+    });
+  };
+
   return (
     <div className="section">
       <button type="button" className="dropzone" onClick={() => input.current?.click()}>
@@ -330,23 +342,35 @@ function Screenshots() {
       />
       {names.length > 0 ? (
         <>
-          <p className="hint">Drag onto a phone, or click to use on the selected one.</p>
-          <div className="captures">
-            {names.map((n) => (
-              <button
-                key={n}
-                type="button"
-                title={n}
-                aria-pressed={current === n}
-                draggable
-                onDragStart={async (e) => {
-                  const img = e.currentTarget.querySelector("img")!;
-                  e.dataTransfer.setData("application/x-storeshots-capture", `${n}|${img.naturalWidth}|${img.naturalHeight}`);
-                }}
-                onClick={() => assign(n)}
-              >
-                <img src={urls.get(n)} alt={n} />
-              </button>
+          <p className="hint">Drag onto a phone, or click to use on the selected one. Backspace deletes the focused one.</p>
+          <div className="captures" ref={grid}>
+            {names.map((n, i) => (
+              <div key={n} className="capture-tile">
+                <button
+                  type="button"
+                  className="thumb"
+                  title={n}
+                  aria-pressed={current === n}
+                  draggable
+                  onDragStart={async (e) => {
+                    const img = e.currentTarget.querySelector("img")!;
+                    e.dataTransfer.setData("application/x-storeshots-capture", `${n}|${img.naturalWidth}|${img.naturalHeight}`);
+                  }}
+                  onClick={() => assign(n)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Backspace" && e.key !== "Delete") return;
+                    // Not the editor's shortcut, which would delete the selected layer instead.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    remove(n, i);
+                  }}
+                >
+                  <img src={urls.get(n)} alt={n} />
+                </button>
+                <button type="button" className="remove" title={`Delete ${n}`} aria-label={`Delete ${n}`} onClick={() => remove(n, i)}>
+                  <X aria-hidden />
+                </button>
+              </div>
             ))}
           </div>
         </>

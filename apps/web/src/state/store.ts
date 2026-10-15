@@ -11,6 +11,8 @@ interface HistoryEntry {
   /** Edits with the same merge key within a moment fold into one undo step. */
   merge?: string | undefined;
   at?: number;
+  /** Project files this step removed, kept so undo can put them back. */
+  removedFiles?: Array<[string, Blob]> | undefined;
 }
 
 const MERGE_WINDOW_MS = 1000;
@@ -69,6 +71,11 @@ export interface EditorState {
   redo(): void;
   /** Adds project files; `fromFolder` marks ones read from the linked folder, which needn't be written back. */
   addAssets(files: Array<[string, Blob]>, opts?: { fromFolder?: boolean }): void;
+  /**
+   * Removes project files and applies a matching edit (say, taking a deleted
+   * screenshot off the phones that showed it) as one undoable step.
+   */
+  removeAssets(label: string, paths: string[], recipe?: (draft: Draft<Project>) => void): void;
   setFolder(folder: FileSystemDirectoryHandle | null): void;
   /** Selects one thing, dropping anything added with Shift. */
   select(sel: Partial<Selection>): void;
@@ -163,6 +170,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { past, doc } = get();
     const entry = past[past.length - 1];
     if (!entry || !doc) return;
+    if (entry.removedFiles) restoreFiles(entry.removedFiles);
     set({
       doc: applyPatches(doc, entry.inverse),
       past: past.slice(0, -1),
@@ -176,6 +184,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { future, doc } = get();
     const entry = future[0];
     if (!entry || !doc) return;
+    if (entry.removedFiles) dropFiles(entry.removedFiles.map(([p]) => p));
     set({
       doc: applyPatches(doc, entry.patches),
       past: [...get().past, entry],
@@ -183,6 +192,24 @@ export const useEditor = create<EditorState>((set, get) => ({
       docSavedToFolder: false,
     });
     fixSelection();
+  },
+
+  removeAssets(label, paths, recipe) {
+    const { doc, assets, past } = get();
+    if (!doc) return;
+    const removedFiles = paths.flatMap((p) => {
+      const b = assets.get(p);
+      return b ? [[p, b] as [string, Blob]] : [];
+    });
+    if (!removedFiles.length) return;
+    const [next, patches, inverse] = produceWithPatches(doc, recipe ?? (() => {}));
+    dropFiles(removedFiles.map(([p]) => p));
+    set({
+      doc: next,
+      docSavedToFolder: patches.length ? false : get().docSavedToFolder,
+      past: [...past, { patches, inverse, label, removedFiles, at: Date.now() }].slice(-HISTORY_LIMIT),
+      future: [],
+    });
   },
 
   addAssets(files, opts) {
@@ -223,6 +250,25 @@ export const useEditor = create<EditorState>((set, get) => ({
   setZoom: (zoom) => set({ zoom: Math.min(3, Math.max(0.25, zoom)) }),
   markFolderSaved: () => set({ unsavedAssets: new Set(), docSavedToFolder: true }),
 }));
+
+/**
+ * Takes files out of the project. They stay listed as unsaved, which tells
+ * folder sync to delete them from the linked folder too.
+ */
+function dropFiles(paths: string[]) {
+  const { assets, unsavedAssets, assetsVersion } = useEditor.getState();
+  const nextAssets = new Map(assets);
+  const unsaved = new Set(unsavedAssets);
+  for (const p of paths) {
+    nextAssets.delete(p);
+    unsaved.add(p);
+  }
+  useEditor.setState({ assets: nextAssets, unsavedAssets: unsaved, assetsVersion: assetsVersion + 1 });
+}
+
+function restoreFiles(files: Array<[string, Blob]>) {
+  useEditor.getState().addAssets(files);
+}
 
 /** Everything selected, primary first. */
 export function selectedRefs(sel: MultiSelection): SelectionRef[] {
