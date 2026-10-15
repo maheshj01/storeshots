@@ -185,12 +185,14 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
     // The Epoch fixture's captures are 1280×2856 (Pixel 9 Pro); import a bezel that matches nothing, then one for all.
     const none = await call("storeshots_import_frame", { source: "ios", device: "1206x2622", use_on: "matching" });
     expect(none.error).toBe(false);
-    expect(none.text).toContain('as frame "sim-iphone-17-pro"');
+    // The newest installed iPhone with that screen: iPhone 17 Pro, or 18 Pro with Xcode 27.
+    const id = /as frame "(sim-iphone-1\d-pro)"/.exec(none.text)?.[1];
+    expect(id).toBeDefined();
     expect(none.text).toContain("no device layers matched");
     const all = await call("storeshots_import_frame", { source: "ios", device: "1206x2622", use_on: "all" });
     expect(all.text).toContain("now used on progress [2], timeline [3], add-event [2], profile [2]");
-    expect(all.text).toMatch(/\[2\] device sim-iphone-17-pro/);
-    expect(await readdir(join(dir, "frames/sim-iphone-17-pro"))).toEqual(["back.png", "frame.json", "screen-mask.png"]);
+    expect(all.text).toContain(`[2] device ${id}`);
+    expect(await readdir(join(dir, `frames/${id}`))).toEqual(["back.png", "frame.json", "screen-mask.png"]);
     const render = await call("storeshots_render", { screens: ["progress"], locales: ["en"] });
     expect(render.text).toContain("rendered 1 image");
   }, 120_000);

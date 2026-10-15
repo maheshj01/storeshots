@@ -83,12 +83,21 @@ export async function listIosDevices(): Promise<IosDevice[]> {
   for (const entry of await readdir(DEVICE_TYPES)) {
     if (!entry.endsWith(".simdevicetype") || !/^(iPhone|iPad)/.test(entry)) continue;
     try {
-      const p = await plist(join(DEVICE_TYPES, entry, "Contents/Resources/profile.plist"));
+      const resources = join(DEVICE_TYPES, entry, "Contents/Resources");
+      const p = await plist(join(resources, "profile.plist"));
       if (typeof p.chromeIdentifier !== "string") continue;
+      let size = { w: Number(p.mainScreenWidth), h: Number(p.mainScreenHeight), scale: Number(p.mainScreenScale) };
+      // Xcode 27 moved the screen size into capabilities.plist.
+      if (!(size.w > 0 && size.h > 0)) {
+        const caps = (await plist(join(resources, "capabilities.plist"))).capabilities as Record<string, Record<string, unknown>> | undefined;
+        const dims = caps?.ScreenDimensionsCapability ?? {};
+        size = { w: Number(dims["main-screen-width"]), h: Number(dims["main-screen-height"]), scale: Number(dims["main-screen-scale"]) };
+      }
+      if (!(size.w > 0 && size.h > 0)) continue;
       out.push({
         name: entry.replace(/\.simdevicetype$/, ""),
-        screen: [Number(p.mainScreenWidth), Number(p.mainScreenHeight)],
-        scale: Number(p.mainScreenScale),
+        screen: [size.w, size.h],
+        scale: size.scale,
         chrome: p.chromeIdentifier,
         mask: typeof p.framebufferMask === "string" ? p.framebufferMask : undefined,
       });
