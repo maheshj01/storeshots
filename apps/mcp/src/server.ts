@@ -1,11 +1,11 @@
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { createCanvas } from "@napi-rs/canvas";
-import type { Layer, Project, Screen } from "@storeshots/schema";
+import { serializeProject, type Layer, type Project, type Screen } from "@storeshots/schema";
 import { CATALOG, findFrame } from "@storeshots/frames";
 import { checkImage, checkSet } from "@storeshots/stores";
 import { exportProject, inspectScreen, outputPath, renderDevice, renderScreen, type ScreenInspection } from "@storeshots/core";
@@ -689,6 +689,115 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
         });
         const cache = folder.cache();
         const lines = [`applied template ${template} to ${screens ? screens.join(", ") : "every screen"}`, "screens:"];
+        for (const [n, s] of project.screens.entries()) lines.push(screenSummary(project, s, await inspectScreen(project, { screen: s.id }, cache).catch(() => null), n + 1));
+        return ok(lines.join("\n"));
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "storeshots_create_project",
+    {
+      title: "Create a project",
+      description:
+        'Creates a new storeshots project: a folder with a storeshots.json for one store, laid out with a starter template and placeholder captions, and the template\'s fonts. In an app\'s repository, put it in store-assets/ios (App Store) or store-assets/android (Google Play), the default. Then add the app\'s screenshots with storeshots_import_captures. Refuses to overwrite an existing project.',
+      inputSchema: {
+        store: z.enum(["appstore", "play"]).describe("appstore: iPhone 6.9-inch, 1320×2868. play: Google Play phone, 1080×1920."),
+        name: z.string().min(1).describe("The app's name"),
+        folder: z.string().optional().describe("Where to create it, relative to the folder the agent works in. Default store-assets/ios or store-assets/android."),
+        template: z.enum(ops.TEMPLATES.map((t) => t.id) as [string, ...string[]]).default("headline").describe(`Starter layout: ${ops.TEMPLATES.map((t) => `${t.id} (${t.blurb})`).join("; ")}`),
+        brand: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#E0237A").describe("Brand colour, #RRGGBB; the template builds its colours from it"),
+      },
+      annotations: write,
+    },
+    async ({ store, name, folder: dir, template, brand }) => {
+      try {
+        const target = resolve(process.cwd(), dir ?? `store-assets/${store === "appstore" ? "ios" : "android"}`);
+        if (existsSync(join(target, "storeshots.json"))) throw new Error(`${target} already has a project; work on it with project_dir instead`);
+        const { doc, fonts } = ops.newProject(name, template, brand, store);
+        await mkdir(join(target, "captures", doc.locales.default), { recursive: true });
+        await writeFile(join(target, "storeshots.json"), serializeProject(doc));
+        const folder = folderFor(target);
+        for (const f of fonts) await ensureFont(folder, `fonts/${f}`);
+        const rel = relative(process.cwd(), target) || ".";
+        return ok(
+          [
+            `created ${doc.targets[0]!.store === "appstore" ? "an App Store" : "a Google Play"} project "${name}" in ${rel} (pass project_dir "${rel}")`,
+            `${doc.screens.length} screens with placeholder captions and empty phones, template ${template}, ${doc.targets[0]!.size.join("×")}`,
+            `next: storeshots_import_captures to bring in the app's screenshots`,
+          ].join("\n"),
+        );
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "storeshots_import_captures",
+    {
+      title: "Import a folder of screenshots",
+      description:
+        "Copies every PNG, JPEG or WebP screenshot in a folder into the project (captures/<locale>/), in file-name order, along with each one's description file: <name>.json beside it or in a meta/ folder. Then, unless place is false, puts them on the phones like dropping them in the editor: empty phones first, in screen order, then a new screen for each one left. Screenshots already in the project are replaced. Returns the screens.",
+      inputSchema: {
+        source_dir: z.string().describe("Folder with the screenshots, absolute or relative to the project folder, e.g. ../../screenshots/raw/pixel 7"),
+        place: z.boolean().default(true).describe("Put them on phones; false only copies them in"),
+        locale,
+        project_dir: projectDir,
+      },
+      annotations: write,
+    },
+    async ({ source_dir, place, locale: loc, project_dir }) => {
+      try {
+        const folder = folderFor(project_dir);
+        const p = await folder.load();
+        const lc = pickLocale(p, loc);
+        const src = resolve(folder.dir, source_dir);
+        if (!(await exists(src))) throw new Error(`no folder at ${src}`);
+        const images = (await readdir(src)).filter((f) => /\.(png|jpe?g|webp)$/i.test(f)).sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+        if (!images.length) throw new Error(`no PNG, JPEG or WebP files in ${src}`);
+        const dest = join(folder.dir, "captures", lc);
+        await mkdir(dest, { recursive: true });
+        let described = 0;
+        for (const f of images) {
+          await copyFile(join(src, f), join(dest, f));
+          const base = f.replace(/\.[^.]+$/, "");
+          for (const meta of [join(src, `${base}.json`), join(src, "meta", `${base}.json`)]) {
+            if (!(await exists(meta))) continue;
+            await copyFile(meta, join(dest, `${base}.json`));
+            described++;
+            break;
+          }
+        }
+        // The live editor gets the files before the screens refer to them.
+        await folder.flush();
+        const lines = [`imported ${images.length} screenshots into captures/${lc}/ (${described} with a description file)`];
+        if (place) {
+          const sizes = await Promise.all(images.map((f) => captureSize(folder, p, f, lc)));
+          const { result: placed } = await folder.edit((q) => {
+            const t = pickTarget(q);
+            const out: string[] = [];
+            for (const cap of sizes) {
+              const slot = q.screens.flatMap((s) => s.layers.map((l, i) => ({ s, l, i }))).find(({ l }) => l.type === "device" && !l.capture);
+              if (slot) {
+                ops.setCapture(q, slot.s.id, slot.i, cap, t);
+                out.push(`${cap.name} → ${slot.s.id}`);
+                continue;
+              }
+              const id = ops.addScreen(q, q.screens[q.screens.length - 1]?.id);
+              const li = ops.getScreen(q, id).layers.findIndex((l) => l.type === "device");
+              if (li >= 0) ops.setCapture(q, id, li, cap, t);
+              out.push(`${cap.name} → ${id} (new screen)`);
+            }
+            return out;
+          });
+          lines.push(...placed);
+        }
+        const project = await folder.load();
+        const cache = folder.cache();
+        lines.push("screens:");
         for (const [n, s] of project.screens.entries()) lines.push(screenSummary(project, s, await inspectScreen(project, { screen: s.id }, cache).catch(() => null), n + 1));
         return ok(lines.join("\n"));
       } catch (e) {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cp, mkdtemp, readFile, rm, readdir } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -46,9 +46,11 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
       "storeshots_apply_template",
       "storeshots_arrange_layer",
       "storeshots_check",
+      "storeshots_create_project",
       "storeshots_edit_screens",
       "storeshots_get_project",
       "storeshots_import_capture",
+      "storeshots_import_captures",
       "storeshots_import_frame",
       "storeshots_inspect_screen",
       "storeshots_render",
@@ -70,6 +72,36 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
     const text = (r.messages[0]!.content as { text: string }).text;
     expect(text).toContain("store-assets/android/brief.md");
     expect(text).toContain("The user adds: lead with the year view");
+  });
+
+  it("creates a project and imports a folder of screenshots onto it", async () => {
+    const app = await mkdtemp(join(tmpdir(), "storeshots-app-"));
+    try {
+      const target = join(app, "store-assets/android");
+      const made = await call("storeshots_create_project", { store: "play", name: "Epoch", folder: target });
+      expect(made.error).toBe(false);
+      expect(made.text).toContain('a Google Play project "Epoch"');
+      expect((await call("storeshots_create_project", { store: "play", name: "Again", folder: target })).text).toMatch(/already has a project/);
+
+      // Screenshots with a description file in a meta/ folder, as some capture scripts write them.
+      const shots = join(app, "screenshots");
+      await cp(join(fixture, "captures/en"), shots, { recursive: true });
+      await cp(join(shots, "01_progress.png"), join(shots, "05_extra.png"));
+      await mkdir(join(shots, "meta"));
+      await writeFile(join(shots, "meta/01_progress.json"), JSON.stringify({ description: "Year view" }));
+
+      const r = await call("storeshots_import_captures", { source_dir: shots, project_dir: target });
+      expect(r.error).toBe(false);
+      expect(r.text).toContain("imported 5 screenshots into captures/en/ (1 with a description file)");
+      expect(r.text).toContain("05_extra.png → screen-5 (new screen)");
+      expect(existsSync(join(target, "captures/en/01_progress.json"))).toBe(true);
+      const doc = JSON.parse(await readFile(join(target, "storeshots.json"), "utf8"));
+      expect(doc.screens.map((s: { layers: Array<{ type: string; capture?: string }> }) => s.layers.find((l) => l.type === "device")?.capture)).toEqual([
+        "01_progress.png", "02_timeline.png", "03_add_event.png", "04_profile.png", "05_extra.png",
+      ]);
+    } finally {
+      await rm(app, { recursive: true, force: true });
+    }
   });
 
   it("summarises the project", async () => {

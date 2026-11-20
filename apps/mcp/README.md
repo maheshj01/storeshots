@@ -76,15 +76,19 @@ They come three ways, all with the same instructions:
 
 - **MCP prompts:** in Claude Code, type `/mcp__storeshots__plan`,
   `/mcp__storeshots__build` or `/mcp__storeshots__refresh`.
-- **A Claude Code skill:** copy [`skills/storeshots/SKILL.md`](../../skills/storeshots/SKILL.md)
-  to your app's `.claude/skills/storeshots/SKILL.md` (or download it from
-  the editor's AI dialog), then just ask Claude to make your store
-  screenshots.
+- **A skill:** `npx skills add maheshj01/skills --skill storeshots -g`
+  installs it for every project (or copy
+  [`skills/storeshots/SKILL.md`](../../skills/storeshots/SKILL.md) to your
+  app's `.claude/skills/storeshots/`). Then, in any app's folder, ask
+  "Make Google Play screenshots for this app": the agent creates the
+  project, imports your screenshots and writes the brief for you to
+  review.
 - **Copyable prompts:** the editor's AI dialog has each one filled in with
   your project's folder, for any other agent.
 
 The prompts live in `packages/ops/src/agent.ts`; after changing them, run
-`pnpm skill` to update the skill file.
+`pnpm skill` to update the skill file, and `pnpm skill <path>` to update a
+copy (e.g. in the skills repository).
 
 ## Tools
 
@@ -101,6 +105,8 @@ The prompts live in `packages/ops/src/agent.ts`; after changing them, run
 | `storeshots_set_background` | Solid or gradient background, on one screen, several, or all. |
 | `storeshots_set_theme` | Add, change, rename or remove theme colours; set theme fonts. Restyles every screen that uses them. |
 | `storeshots_apply_template` | Re-lay out every screen, or just some, with a starter template, keeping captions and screenshots. |
+| `storeshots_create_project` | Start a project for the App Store or Google Play, in `store-assets/ios` or `store-assets/android` by default. |
+| `storeshots_import_captures` | Copy a whole folder of screenshots (and their description files) in and put them on the phones, adding screens as needed. |
 | `storeshots_import_capture` | Copy a screenshot into `captures/<locale>/` and put it on a phone. |
 | `storeshots_import_frame` | Import an exact bezel from this machine: Xcode's Simulator (iPhone, iPad) or an Android SDK skin; optionally switch matching phones to it. |
 | `storeshots_render` | Write store-ready files to `store/`. Preview images only when asked. |
