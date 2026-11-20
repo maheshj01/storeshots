@@ -76,12 +76,12 @@ Task: plan the store screenshots and write a brief for the user to review. Apart
    - Screens, in store order. Google Play shows at most 8 phone screenshots and the App Store at most 10; the first two or three decide whether people install. For each screen: its name (kebab-case, it becomes the screen id), the screenshot file, a headline (sentence case, at most about 30 characters, a benefit rather than a feature name, numbers beat vague words), an optional subline (at most about 60 characters), the region to zoom on if one part matters most, and the background.
    - Design system: theme colours (names and hex, taken from the app), the heading and body fonts (the app's, or the closest of the bundled fonts storeshots_get_project lists), and which text colour goes on which background.
    - Gaps: screenshots that are missing, outdated or need retaking, with what they should show.
-5. Stop. Tell the user the brief is ready to review and edit, and that the build step will follow it.${notes(ctx)}`;
+5. Stop and ask for confirmation: tell the user the brief is ready to review and edit, and ask whether to build the screenshots from it. Don't build until they say so.${notes(ctx)}`;
   }
   if (task === "build") {
     return `${ground(ctx)}
 
-Task: build the store screenshots from ${p}/brief.md. If there's no brief, write one as in the plan step, then stop for the user to review it.
+Task: build the store screenshots from ${p}/brief.md, once the user has confirmed it. If there's no brief, write one as in the plan step, then stop for the user to review it.
 
 1. Run storeshots_get_project.
 2. Set up the design system with storeshots_set_theme: the brief's colours as named theme colours, and its fonts as $heading and $body. Use $name colours in every layer and background, so the set stays consistent and can be restyled in one place.
@@ -127,7 +127,7 @@ If the storeshots tools (storeshots_*) aren't available, the storeshots MCP serv
 
 ${ground({})}
 
-Pick the workflow from what the user asks. For a new set, plan first and wait for the user to review the brief before building, unless they ask you to go straight through.
+Pick the workflow from what the user asks. For a new set, plan first, then ask the user to confirm the brief and build only after they do, unless they asked you to go straight through.
 
 ## Plan: write a brief
 
