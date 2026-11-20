@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, FolderSync, FolderX, Redo2, Undo2, Package, Sparkles, FolderPlus } from "lucide-react";
 import { useEditor } from "../state/store.ts";
 import { canUseFolders, download, exportZip, projectPath, slug } from "../state/io.ts";
-import { linkFolder, reconnectFolder, useSyncStatus } from "../engine/folderSync.ts";
+import { linkFolder, reconnectFolder, unlinkFolder, useSyncStatus } from "../engine/folderSync.ts";
 import { AiDialog } from "./AiDialog.tsx";
 import { useBridge } from "../engine/bridge.ts";
 import { deviceLabel } from "./Table.tsx";
@@ -96,6 +96,14 @@ export function TopBar({ onHome, saved }: { onHome: () => void; saved: boolean }
 function FolderStatus() {
   const folder = useEditor((s) => s.folder);
   const status = useSyncStatus((s) => s.status);
+  const link = async () => {
+    try {
+      const name = await linkFolder();
+      if (name) toast(`Linked to ${name}. Changes sync both ways.`);
+    } catch (e) {
+      if ((e as DOMException).name !== "AbortError") toast((e as Error).message, true);
+    }
+  };
   if (!folder) {
     if (!canUseFolders) return null;
     return (
@@ -103,17 +111,33 @@ function FolderStatus() {
         type="button"
         className="btn hide-narrow"
         title="Pick your app's folder: the project is saved in store-assets/ios or store-assets/android inside it and kept in sync, so AI agents and the CLI can work on it"
-        onClick={async () => {
-          try {
-            const name = await linkFolder();
-            if (name) toast(`Linked to ${name}. Changes sync both ways.`);
-          } catch (e) {
-            if ((e as DOMException).name !== "AbortError") toast((e as Error).message, true);
-          }
-        }}
+        onClick={link}
       >
         <FolderPlus aria-hidden /> Link a folder
       </button>
+    );
+  }
+  if (status.kind === "missing" || status.kind === "error") {
+    return (
+      <span className="sync-fix">
+        <span className="sync bad" title={status.message}>
+          <FolderX aria-hidden /> <span className="hide-narrow">{status.kind === "missing" ? `${projectPath(folder)} is gone` : `${projectPath(folder)}: sync problem`}</span>
+        </span>
+        <button type="button" className="btn" onClick={link} title={`${status.message}. Pick your app's folder to save this project there again, or to open the project already in it.`}>
+          <FolderPlus aria-hidden /> <span className="hide-narrow">Link again</span>
+        </button>
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={async () => {
+            await unlinkFolder();
+            toast("Unlinked. The project stays in this browser.");
+          }}
+          title="Stop syncing. The project stays in this browser."
+        >
+          Unlink
+        </button>
+      </span>
     );
   }
   if (status.kind === "reconnect") {
@@ -124,9 +148,9 @@ function FolderStatus() {
     );
   }
   const where = projectPath(folder);
-  const label = status.kind === "saving" ? `Saving to ${where}…` : status.kind === "error" ? `${where}: sync problem` : `Synced with ${where}`;
+  const label = status.kind === "saving" ? `Saving to ${where}…` : `Synced with ${where}`;
   return (
-    <span className={`sync${status.kind === "error" ? " bad" : ""}`} title={status.kind === "error" ? status.message : "Changes save to the folder, and changes made there (by an AI agent, the CLI or git) appear here"}>
+    <span className="sync" title={"Changes save to the folder, and changes made there (by an AI agent, the CLI or git) appear here"}>
       <FolderSync aria-hidden /> <span className="hide-narrow">{label}</span>
     </span>
   );

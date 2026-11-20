@@ -120,6 +120,7 @@ input[type="range"] { accent-color: var(--proof); width: 100%; }
 .sync { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; font-size: 12px; color: var(--ok); white-space: nowrap; }
 .sync svg { width: 15px; height: 15px; }
 .sync.bad { color: var(--bad); }
+.sync-fix { display: inline-flex; align-items: center; gap: 4px; }
 
 .workspace { display: grid; grid-template-columns: auto 1fr 288px; min-height: 0; }
 .panel { background: var(--panel); min-height: 0; overflow: auto; }

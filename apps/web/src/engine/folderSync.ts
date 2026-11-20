@@ -19,6 +19,8 @@ export type SyncState =
   | { kind: "reconnect" }
   | { kind: "synced"; at: number }
   | { kind: "saving" }
+  /** The folder, or the storeshots.json in it, was deleted or moved. */
+  | { kind: "missing"; message: string }
   | { kind: "error"; message: string };
 
 export const useSyncStatus = create<{ status: SyncState; lastExternal: number }>(() => ({ status: { kind: "off" }, lastExternal: 0 }));
@@ -41,6 +43,16 @@ interface SyncSession {
 async function permitted(handle: FileSystemDirectoryHandle): Promise<boolean> {
   const h = handle as unknown as { queryPermission(o: object): Promise<PermissionState> };
   return (await h.queryPermission({ mode: "readwrite" })) === "granted";
+}
+
+/** False once the folder itself has been deleted or moved. */
+async function folderExists(handle: FileSystemDirectoryHandle): Promise<boolean> {
+  try {
+    for await (const _ of (handle as unknown as { keys(): AsyncIterable<string> }).keys()) break;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function readText(handle: FileSystemDirectoryHandle): Promise<string | null> {
@@ -85,7 +97,13 @@ async function poll(s: SyncSession, tick: number) {
   s.busy = true;
   try {
     const text = await readText(s.handle);
-    if (text === null) return setStatus({ kind: "error", message: `${s.handle.name}/storeshots.json is missing` });
+    if (text === null) {
+      const where = projectPath(s.handle);
+      return setStatus({
+        kind: "missing",
+        message: (await folderExists(s.handle)) ? `${where}/storeshots.json was deleted or moved` : `${where} was deleted or moved`,
+      });
+    }
     const assetsFirst = s.diskText === null || text !== s.diskText || tick % ASSET_SCAN_EVERY === 0;
     // New files first, so a design that uses them renders complete.
     if (assetsFirst) await scanAssets(s);
@@ -224,11 +242,27 @@ export async function linkFolder(): Promise<string | null> {
   if (!doc || !projectId) return null;
   const handle = await projectFolderFor(picked, platformOf(doc));
   const where = handle === picked ? picked.name : `${picked.name}/${projectPath(handle)}`;
-  if ((await readText(handle)) !== null && !confirm(`${where} already has a storeshots.json. Replace it with this project?`)) return null;
+  if ((await readText(handle)) !== null) {
+    // Most likely an AI agent or the CLI made it: open that one, unless the
+    // person wants this project to replace it.
+    if (confirm(`${where} already has a project. Open it here?\n\nCancel to replace it with the project open now.`)) {
+      useEditor.getState().setFolder(handle); // the first sync loads the folder's project
+      await saveDoc(projectId, doc, { folder: handle });
+      return where;
+    }
+    if (!confirm(`Replace the project in ${where} with the one open now? Its storeshots.json will be overwritten.`)) return null;
+  }
   for (const [path, blob] of assets) await writeFolderFile(handle, path, blob);
   await writeFolderFile(handle, "storeshots.json", serializeProject(doc));
   useEditor.getState().setFolder(handle);
   useEditor.getState().markFolderSaved();
   await saveDoc(projectId, doc, { folder: handle });
   return where;
+}
+
+/** Stops syncing: the project stays in this browser, the folder is left as it is. */
+export async function unlinkFolder() {
+  const { doc, projectId, setFolder } = useEditor.getState();
+  setFolder(null);
+  if (doc && projectId) await saveDoc(projectId, doc, { folder: undefined });
 }
