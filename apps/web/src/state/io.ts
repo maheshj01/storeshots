@@ -140,6 +140,18 @@ async function isEmpty(dir: FileSystemDirectoryHandle): Promise<boolean> {
  * otherwise the platform's folder in store-assets (made if needed), so
  * picking an app's repository works.
  */
+/**
+ * Writes store-assets/README.md (how the folder works, how to have an agent
+ * make the screenshots) when a project goes in store-assets/ios or android,
+ * unless there's one already.
+ */
+export async function writeStoreAssetsReadme(picked: FileSystemDirectoryHandle, project: FileSystemDirectoryHandle, text: string) {
+  if (project.name !== "ios" && project.name !== "android") return;
+  const root = picked.name === PROJECT_FOLDER ? picked : await picked.getDirectoryHandle(PROJECT_FOLDER).catch(() => null);
+  if (!root || !(await hasEntry(root, project.name, "directory")) || (await hasEntry(root, "README.md", "file"))) return;
+  await writeFolderFile(root, "README.md", new Blob([text], { type: "text/markdown" }));
+}
+
 export async function projectFolderFor(picked: FileSystemDirectoryHandle, platform: Platform | null): Promise<FileSystemDirectoryHandle> {
   if (await hasEntry(picked, "storeshots.json", "file")) return picked;
   const isRoot = picked.name === PROJECT_FOLDER;

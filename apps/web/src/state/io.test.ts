@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { platformOf, projectFolderFor, projectFoldersIn, projectPath, readFolderFiles } from "./io.ts";
+import { platformOf, projectFolderFor, projectFoldersIn, projectPath, readFolderFiles, writeStoreAssetsReadme } from "./io.ts";
 import type { Project } from "@storeshots/schema";
 
 /** An in-memory stand-in for a folder from the File System Access API. */
@@ -10,10 +10,18 @@ class Dir {
   constructor(name: string) {
     this.name = name;
   }
-  async getFileHandle(name: string) {
+  async getFileHandle(name: string, opts?: { create?: boolean }) {
+    if (!this.entries.has(name) && opts?.create) this.entries.set(name, new Blob([]));
     const e = this.entries.get(name);
     if (!(e instanceof Blob)) throw new DOMException("missing", "NotFoundError");
-    return { kind: "file", getFile: async () => e };
+    return {
+      kind: "file",
+      getFile: async () => this.entries.get(name) as Blob,
+      createWritable: async () => ({
+        write: async (data: Blob | string) => void this.entries.set(name, new Blob([data])),
+        close: async () => {},
+      }),
+    };
   }
   async getDirectoryHandle(name: string, opts?: { create?: boolean }) {
     let e = this.entries.get(name);
@@ -59,6 +67,11 @@ describe("project folders in an app's repository", () => {
     const android = await projectFolderFor(h(app), "android");
     expect(projectPath(android)).toBe("store-assets/android");
     expect([...(app.entries.get("store-assets") as Dir).entries.keys()]).toEqual(["ios", "android"]);
+
+    await writeStoreAssetsReadme(h(app), ios, "first");
+    await writeStoreAssetsReadme(h(app), android, "second"); // never replaces one that's there
+    const files = await readFolderFiles(h(app.entries.get("store-assets") as Dir));
+    expect(await files.get("README.md")!.text()).toBe("first");
   });
 
   it("uses a picked project folder or an empty folder as it is", async () => {

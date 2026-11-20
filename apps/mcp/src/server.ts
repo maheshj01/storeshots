@@ -719,6 +719,9 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
         const { doc, fonts } = ops.newProject(name, template, brand, store);
         await mkdir(join(target, "captures", doc.locales.default), { recursive: true });
         await writeFile(join(target, "storeshots.json"), serializeProject(doc));
+        // How the folder works and how to have an agent make the screenshots, once, beside the projects.
+        const readme = join(dirname(target), "README.md");
+        if (basename(dirname(target)) === "store-assets" && !existsSync(readme)) await writeFile(readme, ops.storeAssetsReadme());
         const folder = folderFor(target);
         for (const f of fonts) await ensureFont(folder, `fonts/${f}`);
         const rel = relative(process.cwd(), target) || ".";

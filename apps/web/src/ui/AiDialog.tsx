@@ -3,7 +3,7 @@ import { Check, Copy, FolderPlus, Plug, X } from "lucide-react";
 import { useEditor } from "../state/store.ts";
 import { linkFolder } from "../engine/folderSync.ts";
 import { canUseFolders, download, platformOf, projectPath } from "../state/io.ts";
-import { AGENT_TASKS, agentPrompt, skillMarkdown, type AgentTask } from "@storeshots/ops";
+import { AGENT_TASKS, DESCRIPTION_EXAMPLE, MCP_INSTALL, MCP_PACKAGE, SKILL_INSTALL, agentPrompt, skillMarkdown, type AgentTask } from "@storeshots/ops";
 import { connectBridge, disconnectBridge, useBridge } from "../engine/bridge.ts";
 import { toast } from "./toast.ts";
 
@@ -13,20 +13,6 @@ import { toast } from "./toast.ts";
  * connects to it directly (the live link) or the project lives in a folder
  * both sides sync with; either way the agent's changes appear here.
  */
-
-/**
- * The MCP server, a single bundled file with its fonts, attached to a GitHub
- * release (it isn't on npm). npx downloads it once and caches it; it runs on
- * Node 20 or later, with no clone or build.
- */
-export const MCP_VERSION = "0.1.0";
-export const PACKAGE = `https://github.com/maheshj01/storeshots/releases/download/v${MCP_VERSION}/storeshots-mcp-server-${MCP_VERSION}.tgz`;
-
-/** The storeshots skill, from the skills repository, for every project (-g). */
-export const SKILL_INSTALL = "npx skills add maheshj01/skills --skill storeshots -g";
-
-/** Adds the MCP server to Claude Code for every project, so any app's repo can use it. */
-export const MCP_INSTALL = `claude mcp add --scope user storeshots -- npx -y ${PACKAGE}`;
 
 type Client = "claude-code" | "claude-desktop" | "cursor" | "other";
 
@@ -43,7 +29,7 @@ const CLIENTS: Array<{ id: Client; label: string }> = [
  * elsewhere, on the project open in the editor.
  */
 export function setupSnippet(client: Client): { note: string; code: string; lang: string } {
-  const args = ["-y", PACKAGE];
+  const args = ["-y", MCP_PACKAGE];
   const json = JSON.stringify({ mcpServers: { storeshots: { command: "npx", args } } }, null, 2);
   switch (client) {
     case "claude-code":
@@ -111,12 +97,7 @@ function ReadyPrompts({ project }: { project: string | undefined }) {
       <p className="hint">{info.description}</p>
       <CopyBlock code={agentPrompt(task, { project })} tall />
       <p className="hint">
-        In Claude Code the same prompts are built in: type <code>/mcp__storeshots__{task}</code>. Easier still, add the storeshots
-        skill once, then just ask Claude to make your store screenshots:
-      </p>
-      <CopyBlock code={SKILL_INSTALL} />
-      <p className="hint">
-        Or{" "}
+        In Claude Code the same prompts are built in: type <code>/mcp__storeshots__{task}</code>. Without the skill, you can also{" "}
         <button type="button" className="link" onClick={() => download(new Blob([skillMarkdown()], { type: "text/markdown" }), "SKILL.md")}>
           download SKILL.md
         </button>{" "}
@@ -211,13 +192,43 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
 
           <ol className="steps">
             <li>
-              <b>Add the MCP server to your AI tool</b>
+              <b>Add the MCP server to your AI tool</b> <span className="once">once, for every project</span>
               <AiSetup />
-              <p className="hint">Needs Node.js 20 or later. You only do this once.</p>
+              <p className="hint">Needs Node.js 20 or later.</p>
             </li>
             <li>
-              <b>Hand over the work</b>
-              <ReadyPrompts project={folder ? projectPath(folder) : open ? "live" : undefined} />
+              <b>Add the storeshots skill</b> <span className="once">once, for every project</span>
+              <CopyBlock code={SKILL_INSTALL} />
+              <p className="hint">It teaches the agent the whole job: plan a brief, build the screens, refresh them later.</p>
+            </li>
+            <li>
+              <b>Capture your app's screens</b>
+              <p className="hint">
+                Save PNGs of the app in its repo, e.g. <code>screenshots/</code>, from integration tests, the Simulator or fastlane:
+                iPhone screenshots for the App Store, Android ones for Google Play. The agent stops if it can't find any.
+              </p>
+              <details className="alt">
+                <summary>Better captions: describe each screenshot</summary>
+                <p className="hint">
+                  The agent works from text, not images. Next to <code>home.png</code>, save <code>home.json</code> (or put it in a{" "}
+                  <code>meta/</code> folder beside the images). Every field is optional; regions are rectangles in screenshot pixels,
+                  used to zoom on what matters. Without these files the agent goes by file names and your app's code.
+                </p>
+                <CopyBlock code={DESCRIPTION_EXAMPLE} tall />
+              </details>
+            </li>
+            <li>
+              <b>In your app's folder, ask Claude</b>
+              <CopyBlock code={`Make ${doc && platformOf(doc) === "android" ? "Google Play" : "App Store"} screenshots for this app`} />
+              <p className="hint">
+                It creates <code>store-assets/ios</code> (<code>android</code> for Google Play), brings in your screenshots and writes{" "}
+                <code>brief.md</code> for you to review. Once you confirm, it designs every screen and renders the store-ready images to{" "}
+                <code>store/</code> in that folder. After retaking the app's screenshots, ask it to refresh them.
+              </p>
+              <details className="alt">
+                <summary>Ready-made prompts, for agents without the skill</summary>
+                <ReadyPrompts project={folder ? projectPath(folder) : open ? "live" : undefined} />
+              </details>
               <details className="alt">
                 <summary>Or ask for something specific</summary>
                 <ul className="prompts">

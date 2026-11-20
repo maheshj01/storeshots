@@ -1,15 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useObjectUrls } from "./useObjectUrls.ts";
 import { FolderOpen, Plus, Trash2, FileArchive, Sparkles } from "lucide-react";
-import { AiDialog, CopyBlock, MCP_INSTALL, SKILL_INSTALL } from "./AiDialog.tsx";
+import { AiDialog } from "./AiDialog.tsx";
 
-const SIDECAR_EXAMPLE = `{
-  "description": "Year view: a grid of 365 dots, today's highlighted",
-  "feature": "Year progress",
-  "theme": "dark",
-  "regions": { "grid": { "x": 64, "y": 420, "w": 1050, "h": 1300 } },
-  "texts": ["2026", "47% of the year is gone"]
-}`;
+
 import { deleteProject, listProjects, loadProject, newProjectId, saveAssets, saveDoc, type ProjectMeta } from "../state/persist.ts";
 import { canUseFolders, importZip, openFolder, type LoadedProject } from "../state/io.ts";
 import { useEditor } from "../state/store.ts";
@@ -100,58 +94,13 @@ export function Home() {
           />
         </div>
 
-        <section className="ai-card" aria-labelledby="ai-card-title">
-          <h2 id="ai-card-title">Let an AI agent make them for you</h2>
-          <p>
-            Claude Code (or another agent) reads your app, plans the screens with you, then designs and exports them through the
-            storeshots MCP server. It works from text, not images, and everything runs on your computer.
+        <section className="ai-card short" aria-labelledby="ai-card-title">
+          <p id="ai-card-title">
+            <b>Let an AI agent make them for you.</b> Claude Code reads your app, plans the screens with you, then designs and exports
+            them. Set it up once, then ask for screenshots in any app's folder.
           </p>
-          <ol className="ai-steps">
-            <li>
-              <span>
-                <b>Add the storeshots MCP server</b> <span className="once">once, for every project</span>
-              </span>
-              <CopyBlock code={MCP_INSTALL} />
-            </li>
-            <li>
-              <span>
-                <b>Add the storeshots skill</b> <span className="once">once, for every project</span>
-              </span>
-              <CopyBlock code={SKILL_INSTALL} />
-            </li>
-            <li>
-              <span>
-                <b>Capture your app's screens</b>
-              </span>
-              <span className="hint">
-                Save PNGs of the app in its repo, e.g. <code>screenshots/</code>, from integration tests, the Simulator or fastlane:
-                iPhone screenshots for the App Store, Android ones for Google Play. The agent stops if it can't find any.
-              </span>
-              <details className="alt">
-                <summary>Better captions: describe each screenshot</summary>
-                <span className="hint">
-                  The agent works from text, not images. Next to <code>home.png</code>, save <code>home.json</code> (or put it in a{" "}
-                  <code>meta/</code> folder beside the images). Every field is optional; regions are rectangles in screenshot pixels,
-                  used to zoom on what matters. Without these files the agent goes by file names and your app's code.
-                </span>
-                <CopyBlock code={SIDECAR_EXAMPLE} tall />
-              </details>
-            </li>
-            <li>
-              <span>
-                <b>In your app's folder, ask Claude</b>
-              </span>
-              <CopyBlock code="Make App Store screenshots for this app" />
-              <span className="hint">
-                It creates <code>store-assets/ios</code> (<code>android</code> for Google Play), brings in your screenshots and writes{" "}
-                <code>brief.md</code>: the screens and captions, for you to review. Say go, and it designs every screen and renders the
-                store-ready images to <code>store-assets/ios/store</code>. This page needn't be open; open the folder here to watch
-                or fine-tune.
-              </span>
-            </li>
-          </ol>
           <button type="button" className="btn" onClick={() => setAi(true)}>
-            <Sparkles aria-hidden /> Cursor, Claude Desktop and more
+            <Sparkles aria-hidden /> Set up
           </button>
         </section>
 

@@ -4,7 +4,8 @@ import { parseProject, serializeProject, type Project } from "@storeshots/schema
 import { useEditor } from "../state/store.ts";
 import { applyExternalProject } from "../state/external.ts";
 import { saveAssets, saveDoc } from "../state/persist.ts";
-import { ensureWritable, platformOf, projectFolderFor, projectPath, readFolderFiles, removeFolderFile, writeFolderFile } from "../state/io.ts";
+import { storeAssetsReadme } from "@storeshots/ops";
+import { ensureWritable, platformOf, projectFolderFor, projectPath, readFolderFiles, removeFolderFile, writeFolderFile, writeStoreAssetsReadme } from "../state/io.ts";
 
 /**
  * Two-way sync between the open project and a folder on disk (Chromium's
@@ -254,6 +255,7 @@ export async function linkFolder(): Promise<string | null> {
   }
   for (const [path, blob] of assets) await writeFolderFile(handle, path, blob);
   await writeFolderFile(handle, "storeshots.json", serializeProject(doc));
+  await writeStoreAssetsReadme(picked, handle, storeAssetsReadme());
   useEditor.getState().setFolder(handle);
   useEditor.getState().markFolderSaved();
   await saveDoc(projectId, doc, { folder: handle });

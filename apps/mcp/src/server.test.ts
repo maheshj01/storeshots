@@ -82,6 +82,7 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
       expect(made.error).toBe(false);
       expect(made.text).toContain('a Google Play project "Epoch"');
       expect((await call("storeshots_create_project", { store: "play", name: "Again", folder: target })).text).toMatch(/already has a project/);
+      expect(await readFile(join(app, "store-assets/README.md"), "utf8")).toContain("Have an AI agent make them");
 
       // Screenshots with a description file in a meta/ folder, as some capture scripts write them.
       const shots = join(app, "screenshots");

@@ -6,6 +6,67 @@
  * editor, filled in with the project's folder.
  */
 
+/** The web editor, where the setup steps are. */
+export const STORESHOTS_SITE = "https://storeshots-mcp.vercel.app";
+
+/**
+ * The MCP server: one bundled file with its fonts, attached to a GitHub
+ * release (it isn't on npm). npx downloads it once and caches it; it runs on
+ * Node 20 or later. Bump with apps/mcp/package.json when releasing.
+ */
+export const MCP_VERSION = "0.1.0";
+export const MCP_PACKAGE = `https://github.com/maheshj01/storeshots/releases/download/v${MCP_VERSION}/storeshots-mcp-server-${MCP_VERSION}.tgz`;
+
+/** Adds the MCP server to Claude Code for every project. */
+export const MCP_INSTALL = `claude mcp add --scope user storeshots -- npx -y ${MCP_PACKAGE}`;
+
+/** The storeshots skill, from the skills repository, for every project (-g). */
+export const SKILL_INSTALL = "npx skills add maheshj01/skills --skill storeshots -g";
+
+/** What a screenshot's description file (<name>.json) can say; every field is optional. */
+export const DESCRIPTION_EXAMPLE = `{
+  "description": "Year view: a grid of 365 dots, today's highlighted",
+  "feature": "Year progress",
+  "theme": "dark",
+  "regions": { "grid": { "x": 64, "y": 420, "w": 1050, "h": 1300 } },
+  "texts": ["2026", "47% of the year is gone"]
+}`;
+
+/**
+ * store-assets/README.md: how the folder works and how to have an agent make
+ * the screenshots, written beside the projects when one is created.
+ */
+export function storeAssetsReadme(): string {
+  return `# Store screenshots
+
+This folder holds the app's App Store and Google Play screenshot designs, made with storeshots (${STORESHOTS_SITE}).
+
+- \`ios/\`: the App Store project. \`android/\`: the Google Play project.
+- Each has a \`storeshots.json\` (the design), \`captures/<locale>/\` (the app's screenshots), and \`store/\` (the rendered images to upload).
+
+## Have an AI agent make them
+
+Once per machine:
+
+\`\`\`
+${MCP_INSTALL}
+${SKILL_INSTALL}
+\`\`\`
+
+Then in the app's folder, ask Claude: "Make App Store screenshots for this app" (or Google Play). It finds the app's screenshots, writes \`brief.md\` for you to review, and after you confirm, designs and renders every screen. Later, after retaking the app's screenshots: "Refresh the store screenshots".
+
+The agent works from text, not images. For better captions, save a description next to each screenshot (\`home.json\` beside \`home.png\`, or in a \`meta/\` folder); every field is optional and regions are in screenshot pixels:
+
+\`\`\`json
+${DESCRIPTION_EXAMPLE}
+\`\`\`
+
+## Edit by hand
+
+Open ${STORESHOTS_SITE} in Chrome or Edge, click Open folder and pick the app's folder. Changes sync both ways, including the agent's, within about a second.
+`;
+}
+
 export interface AgentContext {
   /** The project: a folder with a storeshots.json (e.g. "store-assets/ios"), or "live" for the editor tab. */
   project?: string | undefined;
