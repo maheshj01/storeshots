@@ -74,6 +74,24 @@ node apps/cli/src/main.ts frames import ios:1206x2622 examples/epoch   # macOS w
 | `tools/goldens`   | Reference images at half size; `UPDATE_GOLDENS=1 pnpm test` regenerates                                                     |
 | `examples/epoch`  | The dogfood fixture: 4 screens, en and de                                                                                   |
 
+## Releasing the MCP server
+
+The MCP server isn't on npm. Users run it with npx from a `.tgz` attached to a
+GitHub release (the editor's AI card shows the command).
+
+1. Bump `version` in `apps/mcp/package.json` and `MCP_VERSION` in
+   `apps/web/src/ui/AiDialog.tsx` to the same version.
+2. Build the file: `cd apps/mcp && npm pack --pack-destination ../../dist-release`
+   (it bundles the server first; `dist-release/` is git-ignored).
+3. Create a release tagged `v<version>` with the file attached:
+   `gh release create v<version> dist-release/storeshots-mcp-server-<version>.tgz`.
+4. Push, so the site shows the new command, then check it:
+   `npx -y https://github.com/maheshj01/storeshots/releases/download/v<version>/storeshots-mcp-server-<version>.tgz`
+   should print "storeshots-mcp-server ready".
+
+If the skill's prompts changed (`packages/ops/src/agent.ts`), also run
+`pnpm skill ../skills/skills/storeshots/SKILL.md` and push the skills repo.
+
 ## Decisions still needed from you
 
 Phase 0 went ahead with placeholders. These still block publishing
