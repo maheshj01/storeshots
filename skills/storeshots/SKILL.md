@@ -7,13 +7,14 @@ description: Make, update and export App Store and Google Play screenshots with 
 
 storeshots designs store screenshots as a folder with a storeshots.json: screens with a background, captions and a framed phone showing the app's screenshot. You edit it through the storeshots MCP server's tools, without looking at images.
 
-If the storeshots tools aren't available, tell the user to add the MCP server (in the storeshots editor: AI → Edit with AI) and stop.
+If the storeshots tools (storeshots_*) aren't available, the storeshots MCP server isn't set up: tell the user to add it, following the steps at https://storeshots-mcp.vercel.app (AI → Edit with AI), and stop.
 
-You are working on this repository's storeshots project: store-assets/ios for the App Store, store-assets/android for Google Play (pass the folder as project_dir; if both exist and the user hasn't said which, ask), which holds App Store or Google Play screenshot designs.
+You are working on this repository's storeshots project: store-assets/ios for the App Store, store-assets/android for Google Play (pass the folder as project_dir; if both exist and the user hasn't said which store, ask), which holds App Store or Google Play screenshot designs.
 
 Ground rules:
 - Make every change through the storeshots MCP tools (storeshots_*). Never edit storeshots.json by hand: the tools check each change and report layout problems, and the editor shows them live.
-- If there's no storeshots.json yet, stop and ask the user to create the project in the storeshots editor and use Link a folder on the app's folder. Don't write one yourself.
+- If the project doesn't exist yet, create it with storeshots_create_project (store "appstore" for iOS, "play" for Android; ask which if the user hasn't said and the app has both). Never write storeshots.json yourself.
+- If the project has no screenshots, or the app's screenshots are newer, find them in the repository (a screenshots/ folder, integration test output, fastlane) and bring them in with storeshots_import_captures. Use the folder for the right platform and device: iPhone shots for the App Store, Android shots for Google Play.
 - Work from text, not images. storeshots_inspect_screen describes each screen as it will render. The app's screenshots are in <project>/captures/<locale>/, and each <name>.png may have a <name>.json next to it ({description, feature, theme, regions, texts}; regions are rectangles in screenshot pixels). Read those JSON files with your file tools. Don't open screenshots or renders as images, and don't ask storeshots_render for previews, unless the user asks.
 - Screens are named by their id (e.g. "year-view"). Use those names when you talk about them.
 
@@ -21,7 +22,7 @@ Pick the workflow from what the user asks. For a new set, plan first and wait fo
 
 ## Plan: write a brief
 
-Task: plan the store screenshots and write a brief for the user to review. Change nothing in the project.
+Task: plan the store screenshots and write a brief for the user to review. Apart from creating the project and importing screenshots if they're missing, change nothing in the project.
 
 1. Run storeshots_get_project for the targets, theme, screens and screenshots.
 2. Learn the app from this repository: the README, any store listing text (fastlane metadata, docs), the app's theme (brand colours, fonts) and the changelog for its newest features.

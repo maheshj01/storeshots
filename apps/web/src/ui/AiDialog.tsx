@@ -16,6 +16,12 @@ import { toast } from "./toast.ts";
 
 export const PACKAGE = "storeshots-mcp-server";
 
+/** The storeshots skill, from the skills repository, for every project (-g). */
+export const SKILL_INSTALL = "npx skills add maheshj01/skills --skill storeshots -g";
+
+/** Adds the MCP server to Claude Code for every project, so any app's repo can use it. */
+export const MCP_INSTALL = `claude mcp add --scope user storeshots -- npx -y ${PACKAGE}`;
+
 type Client = "claude-code" | "claude-desktop" | "cursor" | "other";
 
 const CLIENTS: Array<{ id: Client; label: string }> = [
@@ -32,8 +38,8 @@ export function setupSnippet(client: Client, folder: string | null): { note: str
   switch (client) {
     case "claude-code":
       return {
-        note: folder ? `In a terminal, in the folder that contains ${folder}:` : "In a terminal:",
-        code: `claude mcp add storeshots -- npx ${args.join(" ")}`,
+        note: folder ? `In a terminal, in your app's folder:` : "In a terminal (once; it works in every project):",
+        code: folder ? `claude mcp add storeshots -- npx ${args.join(" ")}` : MCP_INSTALL,
         lang: "bash",
       };
     case "claude-desktop":
@@ -57,7 +63,7 @@ export const EXAMPLE_PROMPTS = [
   "Change the brand colour to #2F6FEB and fix any text that becomes hard to read.",
 ];
 
-function CopyBlock({ code, tall }: { code: string; tall?: boolean }) {
+export function CopyBlock({ code, tall }: { code: string; tall?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className={`code${tall ? " tall" : ""}`}>
@@ -99,15 +105,16 @@ function ReadyPrompts({ project }: { project: string }) {
       <p className="hint">{info.description}</p>
       <CopyBlock code={agentPrompt(task, { project })} tall />
       <p className="hint">
-        In Claude Code the same prompts are built in: type <code>/mcp__storeshots__{task}</code>. Or add the{" "}
-        <button
-          type="button"
-          className="link"
-          onClick={() => download(new Blob([skillMarkdown()], { type: "text/markdown" }), "SKILL.md")}
-        >
-          storeshots skill
+        In Claude Code the same prompts are built in: type <code>/mcp__storeshots__{task}</code>. Easier still, add the storeshots
+        skill once, then just ask Claude to make your store screenshots:
+      </p>
+      <CopyBlock code={SKILL_INSTALL} />
+      <p className="hint">
+        Or{" "}
+        <button type="button" className="link" onClick={() => download(new Blob([skillMarkdown()], { type: "text/markdown" }), "SKILL.md")}>
+          download SKILL.md
         </button>{" "}
-        to your app's repo as <code>.claude/skills/storeshots/SKILL.md</code>, and just ask Claude to make your store screenshots.
+        and save it as <code>.claude/skills/storeshots/SKILL.md</code> in your app's repo.
       </p>
     </>
   );
