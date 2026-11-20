@@ -14,7 +14,8 @@
     "check": "pnpm typecheck && pnpm test",
     "render:example": "node apps/cli/src/main.ts render examples/epoch",
     "parity": "pnpm render:example && pnpm --filter @storeshots/parity dev",
-    "mcp": "node apps/mcp/src/main.ts"
+    "mcp": "node apps/mcp/src/main.ts",
+    "skill": "node --experimental-strip-types --no-warnings packages/ops/src/write-skill.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

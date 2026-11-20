@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Check, Copy, FolderPlus, Plug, X } from "lucide-react";
 import { useEditor } from "../state/store.ts";
 import { linkFolder } from "../engine/folderSync.ts";
-import { canUseFolders, platformOf, projectPath } from "../state/io.ts";
+import { canUseFolders, download, platformOf, projectPath } from "../state/io.ts";
+import { AGENT_TASKS, agentPrompt, skillMarkdown, type AgentTask } from "@storeshots/ops";
 import { connectBridge, disconnectBridge, useBridge } from "../engine/bridge.ts";
 import { toast } from "./toast.ts";
 
@@ -56,10 +57,10 @@ export const EXAMPLE_PROMPTS = [
   "Change the brand colour to #2F6FEB and fix any text that becomes hard to read.",
 ];
 
-function CopyBlock({ code }: { code: string }) {
+function CopyBlock({ code, tall }: { code: string; tall?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="code">
+    <div className={`code${tall ? " tall" : ""}`}>
       <pre>{code}</pre>
       <button
         type="button"
@@ -75,6 +76,40 @@ function CopyBlock({ code }: { code: string }) {
         {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
       </button>
     </div>
+  );
+}
+
+/**
+ * The ready-made workflows (plan a brief, build from it, refresh after new
+ * screenshots) as prompts to paste into any agent, filled in with this
+ * project's folder; plus the same workflows as a Claude Code skill.
+ */
+function ReadyPrompts({ project }: { project: string }) {
+  const [task, setTask] = useState<AgentTask>("plan");
+  const info = AGENT_TASKS.find((t) => t.id === task)!;
+  return (
+    <>
+      <div className="seg" role="tablist" aria-label="Workflow">
+        {AGENT_TASKS.map((t, i) => (
+          <button key={t.id} type="button" role="tab" aria-pressed={task === t.id} onClick={() => setTask(t.id)}>
+            {i + 1}. {t.id[0]!.toUpperCase() + t.id.slice(1)}
+          </button>
+        ))}
+      </div>
+      <p className="hint">{info.description}</p>
+      <CopyBlock code={agentPrompt(task, { project })} tall />
+      <p className="hint">
+        In Claude Code the same prompts are built in: type <code>/mcp__storeshots__{task}</code>. Or add the{" "}
+        <button
+          type="button"
+          className="link"
+          onClick={() => download(new Blob([skillMarkdown()], { type: "text/markdown" }), "SKILL.md")}
+        >
+          storeshots skill
+        </button>{" "}
+        to your app's repo as <code>.claude/skills/storeshots/SKILL.md</code>, and just ask Claude to make your store screenshots.
+      </p>
+    </>
   );
 }
 
@@ -172,12 +207,16 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
               <LiveStatus />
             </li>
             <li>
-              <b>Ask for what you want</b>
-              <ul className="prompts">
-                {EXAMPLE_PROMPTS.map((p) => (
-                  <li key={p}>“{p}”</li>
-                ))}
-              </ul>
+              <b>Hand over the work</b>
+              <ReadyPrompts project={folder ? projectPath(folder) : "live"} />
+              <details className="alt">
+                <summary>Or ask for something specific</summary>
+                <ul className="prompts">
+                  {EXAMPLE_PROMPTS.map((p) => (
+                    <li key={p}>“{p}”</li>
+                  ))}
+                </ul>
+              </details>
             </li>
           </ol>
 

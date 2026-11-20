@@ -63,6 +63,15 @@ describe("storeshots MCP server", { timeout: 30_000 }, () => {
     }
   });
 
+  it("offers the plan, build and refresh workflows as prompts", async () => {
+    const { prompts } = await client.listPrompts();
+    expect(prompts.map((p) => p.name)).toEqual(["plan", "build", "refresh"]);
+    const r = await client.getPrompt({ name: "build", arguments: { project: "store-assets/android", notes: "lead with the year view" } });
+    const text = (r.messages[0]!.content as { text: string }).text;
+    expect(text).toContain("store-assets/android/brief.md");
+    expect(text).toContain("The user adds: lead with the year view");
+  });
+
   it("summarises the project", async () => {
     const { text, error } = await call("storeshots_get_project");
     expect(error).toBe(false);

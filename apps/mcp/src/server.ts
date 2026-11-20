@@ -1,5 +1,6 @@
+import { existsSync } from "node:fs";
 import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -897,6 +898,39 @@ export function createServer(defaultDir: string, opts: ServerOptions = {}): McpS
     },
   );
 
+  // Ready-made workflows. Claude Code lists them as /mcp__storeshots__plan, …build and …refresh.
+  for (const task of ops.AGENT_TASKS) {
+    server.registerPrompt(
+      task.id,
+      {
+        title: task.title,
+        description: task.description,
+        argsSchema: {
+          project: z.string().optional().describe('The project folder, e.g. store-assets/ios, or "live" for the editor tab. Default: this repo\'s store-assets.'),
+          notes: z.string().optional().describe("Anything to add, e.g. lead with the year view"),
+        },
+      },
+      ({ project, notes }) => ({
+        messages: [{ role: "user", content: { type: "text", text: ops.agentPrompt(task.id, { project: project || defaultProject(defaultDir), notes }) } }],
+      }),
+    );
+  }
+
   return server;
+}
+
+/**
+ * The project a prompt names by default: the folder the server was started
+ * with, as a path relative to where the agent works. Started on the editor
+ * tab in an app's repository that has store-assets projects, the prompt
+ * points at those instead, since that's where the screenshots belong.
+ */
+function defaultProject(dir: string): string | undefined {
+  if (dir === "live") {
+    const inRepo = ["store-assets/ios", "store-assets/android", "store-assets"].some((p) => existsSync(join(process.cwd(), p, "storeshots.json")));
+    return inRepo ? undefined : "live";
+  }
+  const rel = relative(process.cwd(), resolve(dir));
+  return rel === "" ? "." : rel.startsWith("..") ? resolve(dir) : rel;
 }
 

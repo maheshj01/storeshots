@@ -59,6 +59,33 @@ means the live project.
 template fonts, and `npm pack` in `apps/mcp` makes the package that gets
 published.
 
+## Ready-made workflows
+
+Three workflows hand the whole job to an agent:
+
+1. **Plan:** reads your app's repository and the description file next to
+   each screenshot, then writes `brief.md` in the project (pitch, screen
+   order, headlines, colours, screenshots to retake) and stops for you to
+   review it.
+2. **Build:** designs every screen from the brief with the tools below,
+   fixes everything `storeshots_check` finds, and renders.
+3. **Refresh:** after your app's screenshots are retaken, fixes what they
+   broke without redesigning, and renders again.
+
+They come three ways, all with the same instructions:
+
+- **MCP prompts:** in Claude Code, type `/mcp__storeshots__plan`,
+  `/mcp__storeshots__build` or `/mcp__storeshots__refresh`.
+- **A Claude Code skill:** copy [`skills/storeshots/SKILL.md`](../../skills/storeshots/SKILL.md)
+  to your app's `.claude/skills/storeshots/SKILL.md` (or download it from
+  the editor's AI dialog), then just ask Claude to make your store
+  screenshots.
+- **Copyable prompts:** the editor's AI dialog has each one filled in with
+  your project's folder, for any other agent.
+
+The prompts live in `packages/ops/src/agent.ts`; after changing them, run
+`pnpm skill` to update the skill file.
+
 ## Tools
 
 | Tool | What it does |
