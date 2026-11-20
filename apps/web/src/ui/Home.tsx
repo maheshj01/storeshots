@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useObjectUrls } from "./useObjectUrls.ts";
 import { FolderOpen, Plus, Trash2, FileArchive, Sparkles } from "lucide-react";
 import { AiDialog, CopyBlock, MCP_INSTALL, SKILL_INSTALL } from "./AiDialog.tsx";
+
+const SIDECAR_EXAMPLE = `{
+  "description": "Year view: a grid of 365 dots, today's highlighted",
+  "feature": "Year progress",
+  "theme": "dark",
+  "regions": { "grid": { "x": 64, "y": 420, "w": 1050, "h": 1300 } },
+  "texts": ["2026", "47% of the year is gone"]
+}`;
 import { deleteProject, listProjects, loadProject, newProjectId, saveAssets, saveDoc, type ProjectMeta } from "../state/persist.ts";
 import { canUseFolders, importZip, openFolder, type LoadedProject } from "../state/io.ts";
 import { useEditor } from "../state/store.ts";
@@ -113,13 +121,32 @@ export function Home() {
             </li>
             <li>
               <span>
+                <b>Capture your app's screens</b>
+              </span>
+              <span className="hint">
+                Save PNGs of the app in its repo, e.g. <code>screenshots/</code>, from integration tests, the Simulator or fastlane:
+                iPhone screenshots for the App Store, Android ones for Google Play. The agent stops if it can't find any.
+              </span>
+              <details className="alt">
+                <summary>Better captions: describe each screenshot</summary>
+                <span className="hint">
+                  The agent works from text, not images. Next to <code>home.png</code>, save <code>home.json</code> (or put it in a{" "}
+                  <code>meta/</code> folder beside the images). Every field is optional; regions are rectangles in screenshot pixels,
+                  used to zoom on what matters. Without these files the agent goes by file names and your app's code.
+                </span>
+                <CopyBlock code={SIDECAR_EXAMPLE} tall />
+              </details>
+            </li>
+            <li>
+              <span>
                 <b>In your app's folder, ask Claude</b>
               </span>
-              <CopyBlock code="Make Google Play screenshots for this app" />
+              <CopyBlock code="Make App Store screenshots for this app" />
               <span className="hint">
-                It creates <code>store-assets/android</code> (or <code>ios</code> for the App Store), brings in your app's screenshots,
-                and writes <code>brief.md</code> with the screens and captions for you to review. Say go, and it designs every screen
-                and renders them to <code>store-assets/android/store</code>. Open the folder here to watch or fine-tune.
+                It creates <code>store-assets/ios</code> (<code>android</code> for Google Play), brings in your screenshots and writes{" "}
+                <code>brief.md</code>: the screens and captions, for you to review. Say go, and it designs every screen and renders the
+                store-ready images to <code>store-assets/ios/store</code>. This page needn't be open; open the folder here to watch
+                or fine-tune.
               </span>
             </li>
           </ol>

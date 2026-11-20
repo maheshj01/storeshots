@@ -14,7 +14,13 @@ import { toast } from "./toast.ts";
  * both sides sync with; either way the agent's changes appear here.
  */
 
-export const PACKAGE = "storeshots-mcp-server";
+/**
+ * The MCP server, a single bundled file with its fonts, attached to a GitHub
+ * release (it isn't on npm). npx downloads it once and caches it; it runs on
+ * Node 20 or later, with no clone or build.
+ */
+export const MCP_VERSION = "0.1.0";
+export const PACKAGE = `https://github.com/maheshj01/storeshots/releases/download/mcp-v${MCP_VERSION}/storeshots-mcp-server-${MCP_VERSION}.tgz`;
 
 /** The storeshots skill, from the skills repository, for every project (-g). */
 export const SKILL_INSTALL = "npx skills add maheshj01/skills --skill storeshots -g";
@@ -31,20 +37,20 @@ const CLIENTS: Array<{ id: Client; label: string }> = [
   { id: "other", label: "Other MCP clients" },
 ];
 
-/** Setup for each client; without a folder, the server works on the project open here. */
-export function setupSnippet(client: Client, folder: string | null): { note: string; code: string; lang: string } {
-  const args = folder ? ["-y", PACKAGE, "--project", client === "claude-desktop" || client === "other" ? `/path/to/${folder}` : `./${folder}`] : ["-y", PACKAGE];
+/**
+ * Setup for each client, once for every project. Started in an app's folder,
+ * the server works on its store-assets/ios or store-assets/android project;
+ * elsewhere, on the project open in the editor.
+ */
+export function setupSnippet(client: Client): { note: string; code: string; lang: string } {
+  const args = ["-y", PACKAGE];
   const json = JSON.stringify({ mcpServers: { storeshots: { command: "npx", args } } }, null, 2);
   switch (client) {
     case "claude-code":
-      return {
-        note: folder ? `In a terminal, in your app's folder:` : "In a terminal (once; it works in every project):",
-        code: folder ? `claude mcp add storeshots -- npx ${args.join(" ")}` : MCP_INSTALL,
-        lang: "bash",
-      };
+      return { note: "In a terminal (once; it works in every project):", code: MCP_INSTALL, lang: "bash" };
     case "claude-desktop":
       return {
-        note: `Settings → Developer → Edit Config, add this to claude_desktop_config.json${folder ? ` (with the full path to ${folder})` : ""}, then restart Claude:`,
+        note: "Settings → Developer → Edit Config, add this to claude_desktop_config.json, then restart Claude. It works on the project open in this tab:",
         code: json,
         lang: "json",
       };
@@ -90,7 +96,7 @@ export function CopyBlock({ code, tall }: { code: string; tall?: boolean }) {
  * screenshots) as prompts to paste into any agent, filled in with this
  * project's folder; plus the same workflows as a Claude Code skill.
  */
-function ReadyPrompts({ project }: { project: string }) {
+function ReadyPrompts({ project }: { project: string | undefined }) {
   const [task, setTask] = useState<AgentTask>("plan");
   const info = AGENT_TASKS.find((t) => t.id === task)!;
   return (
@@ -120,9 +126,9 @@ function ReadyPrompts({ project }: { project: string }) {
   );
 }
 
-export function AiSetup({ folderName }: { folderName: string | null }) {
+export function AiSetup() {
   const [client, setClient] = useState<Client>("claude-code");
-  const snippet = setupSnippet(client, folderName);
+  const snippet = setupSnippet(client);
   return (
     <>
       <div className="seg" role="tablist" aria-label="AI tool">
@@ -206,16 +212,12 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
           <ol className="steps">
             <li>
               <b>Add the MCP server to your AI tool</b>
-              <AiSetup folderName={null} />
+              <AiSetup />
               <p className="hint">Needs Node.js 20 or later. You only do this once.</p>
             </li>
             <li>
-              <b>Connect this tab</b>
-              <LiveStatus />
-            </li>
-            <li>
               <b>Hand over the work</b>
-              <ReadyPrompts project={folder ? projectPath(folder) : "live"} />
+              <ReadyPrompts project={folder ? projectPath(folder) : open ? "live" : undefined} />
               <details className="alt">
                 <summary>Or ask for something specific</summary>
                 <ul className="prompts">
@@ -225,14 +227,23 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
                 </ul>
               </details>
             </li>
+            <li>
+              <b>Watch it here</b> <span className="once">optional</span>
+              <p className="hint">
+                The agent saves to the project folder and renders the images itself, so this page doesn't need to be open. To see its
+                changes as it makes them: open the project's folder here, or link this one to a folder (below). Or connect this tab, and
+                the agent works on the project open here:
+              </p>
+              <LiveStatus />
+            </li>
           </ol>
 
           <details className="alt" open={files} onToggle={(e) => setFiles((e.target as HTMLDetailsElement).open)}>
-            <summary>Prefer keeping the project as files in your app's repo?</summary>
+            <summary>Keep this project as files in your app's repo</summary>
             <p className="hint">
               Link the project to your app's folder: it's saved in <code>store-assets/{(doc && platformOf(doc)) ?? "…"}</code> inside it, and the editor and the folder
-              stay in sync both ways. Point the server at that folder, so this also works with the agent running while the editor is
-              closed, and with git.
+              stay in sync both ways. An agent started in your app's folder then works on it directly, with this page open or not, and
+              git tracks every change.
             </p>
             {folder ? (
               <p className="hint">
@@ -258,7 +269,6 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
             ) : (
               <p className="hint">Folder sync needs Chrome or Edge. Elsewhere, use Project .zip and unzip it into your repo.</p>
             )}
-            <AiSetup folderName={folder ? projectPath(folder) : `store-assets/${(doc && platformOf(doc)) ?? "ios"}`} />
           </details>
         </div>
       </div>

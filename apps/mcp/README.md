@@ -14,12 +14,14 @@ as the CLI, so what an agent changes is what people see and what exports.
 
 ## Set up
 
-Needs Node.js 20 or later.
+Needs Node.js 20 or later. The server isn't on npm: it's a single bundled
+file attached to a GitHub release, which npx downloads once and caches. No
+clone or build needed.
 
-Claude Code:
+Claude Code, for every project:
 
 ```
-claude mcp add storeshots -- npx -y storeshots-mcp-server
+claude mcp add --scope user storeshots -- npx -y https://github.com/maheshj01/storeshots/releases/download/mcp-v0.1.0/storeshots-mcp-server-0.1.0.tgz
 ```
 
 Claude Desktop (Settings → Developer → Edit Config), Cursor
@@ -28,10 +30,16 @@ Claude Desktop (Settings → Developer → Edit Config), Cursor
 ```json
 {
   "mcpServers": {
-    "storeshots": { "command": "npx", "args": ["-y", "storeshots-mcp-server"] }
+    "storeshots": { "command": "npx", "args": ["-y", "https://github.com/maheshj01/storeshots/releases/download/mcp-v0.1.0/storeshots-mcp-server-0.1.0.tgz"] }
   }
 }
 ```
+
+To release a new version: bump `version` in apps/mcp/package.json and
+`MCP_VERSION` in apps/web/src/ui/AiDialog.tsx, then from apps/mcp run
+`node build.mjs && npm pack` and attach the .tgz to a GitHub release tagged
+`mcp-v<version>`. From a clone you can also run the source directly:
+`node apps/mcp/src/main.ts` (Node 23.6 or later).
 
 Then pick what the agent works on:
 
