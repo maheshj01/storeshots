@@ -21,7 +21,7 @@ clone or build needed.
 Claude Code, for every project:
 
 ```
-claude mcp add --scope user storeshots -- npx -y https://github.com/maheshj01/storeshots/releases/download/mcp-v0.1.0/storeshots-mcp-server-0.1.0.tgz
+claude mcp add --scope user storeshots -- npx -y https://github.com/maheshj01/storeshots/releases/download/v0.1.0/storeshots-mcp-server-0.1.0.tgz
 ```
 
 Claude Desktop (Settings → Developer → Edit Config), Cursor
@@ -30,7 +30,7 @@ Claude Desktop (Settings → Developer → Edit Config), Cursor
 ```json
 {
   "mcpServers": {
-    "storeshots": { "command": "npx", "args": ["-y", "https://github.com/maheshj01/storeshots/releases/download/mcp-v0.1.0/storeshots-mcp-server-0.1.0.tgz"] }
+    "storeshots": { "command": "npx", "args": ["-y", "https://github.com/maheshj01/storeshots/releases/download/v0.1.0/storeshots-mcp-server-0.1.0.tgz"] }
   }
 }
 ```
@@ -38,7 +38,7 @@ Claude Desktop (Settings → Developer → Edit Config), Cursor
 To release a new version: bump `version` in apps/mcp/package.json and
 `MCP_VERSION` in apps/web/src/ui/AiDialog.tsx, then from apps/mcp run
 `node build.mjs && npm pack` and attach the .tgz to a GitHub release tagged
-`mcp-v<version>`. From a clone you can also run the source directly:
+`v<version>`. From a clone you can also run the source directly:
 `node apps/mcp/src/main.ts` (Node 23.6 or later).
 
 Then pick what the agent works on:

@@ -20,7 +20,7 @@ import { toast } from "./toast.ts";
  * Node 20 or later, with no clone or build.
  */
 export const MCP_VERSION = "0.1.0";
-export const PACKAGE = `https://github.com/maheshj01/storeshots/releases/download/mcp-v${MCP_VERSION}/storeshots-mcp-server-${MCP_VERSION}.tgz`;
+export const PACKAGE = `https://github.com/maheshj01/storeshots/releases/download/v${MCP_VERSION}/storeshots-mcp-server-${MCP_VERSION}.tgz`;
 
 /** The storeshots skill, from the skills repository, for every project (-g). */
 export const SKILL_INSTALL = "npx skills add maheshj01/skills --skill storeshots -g";
