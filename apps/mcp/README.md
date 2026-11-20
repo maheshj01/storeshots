@@ -40,10 +40,13 @@ Then pick what the agent works on:
   `127.0.0.1:47821`; the agent's edits appear on screen as it makes them,
   each one undoable, and your edits are visible to the agent straight away.
   Nothing leaves your computer. Renders go to `./storeshots-export/<project>/`.
-- **A folder with a `storeshots.json`**, e.g. in your app's repo: start the
-  server with `--project ./store-assets` (or from inside that folder), or
-  pass `project_dir` to any tool. In the web editor, **Link a folder** keeps
-  the same folder in sync both ways.
+- **A folder with a `storeshots.json`**, e.g. in your app's repo, where
+  projects live in `store-assets/ios` (App Store) and
+  `store-assets/android` (Google Play): start the server with
+  `--project ./store-assets/ios` (or from inside that folder), or pass
+  `project_dir` to any tool. In the web editor, **Link a folder** and pick
+  your app's folder: the project goes in the right one and stays in sync
+  both ways.
 
 Without `--project`, the server uses a `storeshots.json` in the folder it
 starts in, and otherwise the live project. `project_dir: "live"` always

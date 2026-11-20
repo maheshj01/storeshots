@@ -4,7 +4,7 @@ import { parseProject, serializeProject, type Project } from "@storeshots/schema
 import { useEditor } from "../state/store.ts";
 import { applyExternalProject } from "../state/external.ts";
 import { saveAssets, saveDoc } from "../state/persist.ts";
-import { ensureWritable, projectFolderIn, readFolderFiles, removeFolderFile, writeFolderFile } from "../state/io.ts";
+import { ensureWritable, platformOf, projectFolderFor, projectPath, readFolderFiles, removeFolderFile, writeFolderFile } from "../state/io.ts";
 
 /**
  * Two-way sync between the open project and a folder on disk (Chromium's
@@ -213,8 +213,8 @@ export async function reconnectFolder() {
  * Links a browser-only project to a folder: writes storeshots.json and its
  * files there, then keeps them in sync. This is how a project made on the
  * web becomes something an AI agent can edit. Pick the app's repository and
- * the project goes in its store-assets folder (made if needed); pick an
- * empty folder or a project folder and it goes there.
+ * the project goes in store-assets/ios or store-assets/android, by its store
+ * (made if needed); pick an empty folder or a project folder and it goes there.
  */
 export async function linkFolder(): Promise<string | null> {
   const picker = (window as unknown as { showDirectoryPicker?(o: object): Promise<FileSystemDirectoryHandle> }).showDirectoryPicker;
@@ -222,8 +222,8 @@ export async function linkFolder(): Promise<string | null> {
   const picked = await picker({ mode: "readwrite", id: "storeshots-project" });
   const { doc, assets, projectId } = useEditor.getState();
   if (!doc || !projectId) return null;
-  const handle = (await projectFolderIn(picked, true))!;
-  const where = handle === picked ? picked.name : `${picked.name}/${handle.name}`;
+  const handle = await projectFolderFor(picked, platformOf(doc));
+  const where = handle === picked ? picked.name : `${picked.name}/${projectPath(handle)}`;
   if ((await readText(handle)) !== null && !confirm(`${where} already has a storeshots.json. Replace it with this project?`)) return null;
   for (const [path, blob] of assets) await writeFolderFile(handle, path, blob);
   await writeFolderFile(handle, "storeshots.json", serializeProject(doc));

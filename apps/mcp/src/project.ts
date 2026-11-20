@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile, rename, writeFile, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parseProject, serializeProject, type Project, type Target } from "@storeshots/schema";
@@ -45,7 +46,12 @@ export class ProjectFolder {
     try {
       text = await readFile(this.file, "utf8");
     } catch {
-      throw new Error(`no storeshots.json in ${this.dir}. Pass project_dir, or start the server with --project <folder>.`);
+      const found = ["store-assets/ios", "store-assets/android", "store-assets", "ios", "android"].filter((p) => existsSync(join(this.dir, p, "storeshots.json")));
+      throw new Error(
+        found.length
+          ? `no storeshots.json in ${this.dir} itself; its projects are in ${found.map((p) => join(this.dir, p)).join(" and ")}. Pass that folder as project_dir.`
+          : `no storeshots.json in ${this.dir}. Pass project_dir (an app's projects are in store-assets/ios and store-assets/android), or start the server with --project <folder>.`,
+      );
     }
     let json: unknown;
     try {

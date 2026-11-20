@@ -28,7 +28,7 @@ const THEME =
 const projectDir = z
   .string()
   .optional()
-  .describe('Folder containing storeshots.json, or "live" for the project open in the storeshots editor in the browser. Defaults to what the server was started with.');
+  .describe('Folder containing storeshots.json, or "live" for the project open in the storeshots editor in the browser. In an app\'s repository the projects are store-assets/ios (App Store) and store-assets/android (Google Play). Defaults to what the server was started with.');
 const screenId = z.string().describe('Screen id, e.g. "home". Screens are named by their id (people rename them in the editor), so a screen the user calls "home" is "home". storeshots_get_project lists them.');
 const layerIndex = z.number().int().min(0).describe("Layer number on the screen, 0 = bottom.");
 const locale = z.string().optional().describe("Locale for text, e.g. \"de\". Defaults to the project's default locale.");

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, FolderSync, FolderX, Redo2, Undo2, Package, Sparkles, FolderPlus } from "lucide-react";
 import { useEditor } from "../state/store.ts";
-import { canUseFolders, download, exportZip, slug } from "../state/io.ts";
+import { canUseFolders, download, exportZip, projectPath, slug } from "../state/io.ts";
 import { linkFolder, reconnectFolder, useSyncStatus } from "../engine/folderSync.ts";
 import { AiDialog } from "./AiDialog.tsx";
 import { useBridge } from "../engine/bridge.ts";
@@ -102,7 +102,7 @@ function FolderStatus() {
       <button
         type="button"
         className="btn hide-narrow"
-        title="Pick your app's folder: the project is saved in store-assets inside it and kept in sync, so AI agents and the CLI can work on it"
+        title="Pick your app's folder: the project is saved in store-assets/ios or store-assets/android inside it and kept in sync, so AI agents and the CLI can work on it"
         onClick={async () => {
           try {
             const name = await linkFolder();
@@ -119,11 +119,12 @@ function FolderStatus() {
   if (status.kind === "reconnect") {
     return (
       <button type="button" className="btn" onClick={() => void reconnectFolder()} title="Your browser needs permission again to read and write this folder">
-        <FolderX aria-hidden /> <span className="hide-narrow">Reconnect {folder.name}</span>
+        <FolderX aria-hidden /> <span className="hide-narrow">Reconnect {projectPath(folder)}</span>
       </button>
     );
   }
-  const label = status.kind === "saving" ? `Saving to ${folder.name}…` : status.kind === "error" ? `${folder.name}: sync problem` : `Synced with ${folder.name}`;
+  const where = projectPath(folder);
+  const label = status.kind === "saving" ? `Saving to ${where}…` : status.kind === "error" ? `${where}: sync problem` : `Synced with ${where}`;
   return (
     <span className={`sync${status.kind === "error" ? " bad" : ""}`} title={status.kind === "error" ? status.message : "Changes save to the folder, and changes made there (by an AI agent, the CLI or git) appear here"}>
       <FolderSync aria-hidden /> <span className="hide-narrow">{label}</span>

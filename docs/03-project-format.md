@@ -1,16 +1,23 @@
 # 03 Project format
 
-A project is a folder, normally inside the app's repo:
+A project is a folder, normally inside the app's repo, one per platform:
 
 ```
 store-assets/
-├── storeshots.json        The design: targets, screens, layers, captions
-├── captures/              Raw screenshots, e.g. from adb screencap or simctl
-│   ├── en/01_home.png
-│   └── de/01_home.png
-├── fonts/                 Font files used by text layers
-└── store/                 Rendered output (gitignored or committed, user's call)
+├── ios/                   The App Store project (store-assets/android for Google Play)
+│   ├── storeshots.json    The design: targets, screens, layers, captions
+│   ├── captures/          Raw screenshots, e.g. from adb screencap or simctl
+│   │   ├── en/01_home.png
+│   │   └── de/01_home.png
+│   ├── fonts/             Font files used by text layers
+│   └── store/             Rendered output (gitignored or committed, user's call)
+└── android/               Same layout
 ```
+
+Linking a project to the app's folder in the editor puts it in `ios/` or
+`android/` by its store. A project for both stores at once lives in
+`store-assets/` itself, as did projects made before the per-platform
+folders; the editor still opens those.
 
 ## Design rules
 

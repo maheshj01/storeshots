@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Check, Copy, FolderPlus, Plug, X } from "lucide-react";
 import { useEditor } from "../state/store.ts";
-import { canUseFolders } from "../state/io.ts";
 import { linkFolder } from "../engine/folderSync.ts";
+import { canUseFolders, platformOf, projectPath } from "../state/io.ts";
 import { connectBridge, disconnectBridge, useBridge } from "../engine/bridge.ts";
 import { toast } from "./toast.ts";
 
@@ -143,6 +143,7 @@ function LiveStatus() {
 export function AiDialog({ onClose }: { onClose: () => void }) {
   const folder = useEditor((s) => s.folder);
   const open = useEditor((s) => s.doc !== null);
+  const doc = useEditor((s) => s.doc);
   const [files, setFiles] = useState(false);
   return (
     <div className="scrim" role="dialog" aria-modal="true" aria-labelledby="ai-title" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -183,13 +184,13 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
           <details className="alt" open={files} onToggle={(e) => setFiles((e.target as HTMLDetailsElement).open)}>
             <summary>Prefer keeping the project as files in your app's repo?</summary>
             <p className="hint">
-              Link the project to your app's folder: it's saved in <code>store-assets</code> inside it, and the editor and the folder
+              Link the project to your app's folder: it's saved in <code>store-assets/{(doc && platformOf(doc)) ?? "…"}</code> inside it, and the editor and the folder
               stay in sync both ways. Point the server at that folder, so this also works with the agent running while the editor is
               closed, and with git.
             </p>
             {folder ? (
               <p className="hint">
-                This project syncs with <code>{folder.name}</code>.
+                This project syncs with <code>{projectPath(folder)}</code>.
               </p>
             ) : !open ? (
               <p className="hint">Open a project from a folder, or link one from the editor's top bar.</p>
@@ -211,7 +212,7 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
             ) : (
               <p className="hint">Folder sync needs Chrome or Edge. Elsewhere, use Project .zip and unzip it into your repo.</p>
             )}
-            <AiSetup folderName={folder?.name ?? "store-assets"} />
+            <AiSetup folderName={folder ? projectPath(folder) : `store-assets/${(doc && platformOf(doc)) ?? "ios"}`} />
           </details>
         </div>
       </div>

@@ -77,18 +77,45 @@ async function walk(dir: FileSystemDirectoryHandle, base: string, out: Map<strin
   for await (const [name, handle] of dir as unknown as AsyncIterable<[string, FileSystemHandle]>) {
     const path = base + name;
     if (SKIP.test(path)) continue;
-    if (handle.kind === "directory") await walk(handle as FileSystemDirectoryHandle, `${path}/`, out);
+    if (handle.kind === "directory") {
+      // Another project inside this one (say, store-assets/android next to a
+      // project kept directly in store-assets) isn't part of this one.
+      if (await hasEntry(handle as FileSystemDirectoryHandle, "storeshots.json", "file")) continue;
+      await walk(handle as FileSystemDirectoryHandle, `${path}/`, out);
+    }
     else out.set(path, await (handle as FileSystemFileHandle).getFile());
   }
 }
 
 /**
- * The folder a project lives in, inside an app's repository:
+ * Where projects live inside an app's repository: one store-assets folder,
+ * with a project per platform.
  *
  *   my-app/                 the folder people pick
- *     store-assets/         the project: storeshots.json, captures/, fonts/, frames/
+ *     store-assets/
+ *       ios/                the App Store project: storeshots.json, captures/, fonts/, frames/
+ *       android/            the Google Play project
+ *
+ * A project for both stores at once lives in store-assets itself, and so
+ * do projects made before the per-platform folders.
  */
 export const PROJECT_FOLDER = "store-assets";
+
+export type Platform = "ios" | "android";
+
+/** The platform folder for a project: ios for App Store only, android for Play only, none for both. */
+export function platformOf(doc: Project): Platform | null {
+  const stores = new Set(doc.targets.map((t) => t.store));
+  if (stores.size !== 1) return null;
+  return stores.has("play") ? "android" : "ios";
+}
+
+export const PLATFORM_LABEL: Record<Platform, string> = { ios: "iOS (App Store)", android: "Android (Google Play)" };
+
+/** A short path for a project folder, as people see it in their repository: "store-assets/ios". */
+export function projectPath(handle: FileSystemDirectoryHandle): string {
+  return handle.name === "ios" || handle.name === "android" ? `${PROJECT_FOLDER}/${handle.name}` : handle.name;
+}
 
 async function hasEntry(dir: FileSystemDirectoryHandle, name: string, kind: "file" | "directory"): Promise<boolean> {
   try {
@@ -108,26 +135,54 @@ async function isEmpty(dir: FileSystemDirectoryHandle): Promise<boolean> {
 }
 
 /**
- * Where the project is for a folder someone picked: the folder itself when
- * it holds a storeshots.json (or is empty, or is a store-assets folder), and
- * otherwise its store-assets subfolder, so picking an app's repository works.
- * With `create`, makes store-assets when it isn't there yet.
+ * Where to save a project for the folder someone picked: the folder itself
+ * when it's a project folder (it holds a storeshots.json, or is empty),
+ * otherwise the platform's folder in store-assets (made if needed), so
+ * picking an app's repository works.
  */
-export async function projectFolderIn(picked: FileSystemDirectoryHandle, create: boolean): Promise<FileSystemDirectoryHandle | null> {
+export async function projectFolderFor(picked: FileSystemDirectoryHandle, platform: Platform | null): Promise<FileSystemDirectoryHandle> {
   if (await hasEntry(picked, "storeshots.json", "file")) return picked;
-  if (await hasEntry(picked, PROJECT_FOLDER, "directory")) return picked.getDirectoryHandle(PROJECT_FOLDER);
-  if (picked.name === PROJECT_FOLDER || (await isEmpty(picked))) return create ? picked : null;
-  return create ? picked.getDirectoryHandle(PROJECT_FOLDER, { create: true }) : null;
+  const isRoot = picked.name === PROJECT_FOLDER;
+  if (!isRoot && (await isEmpty(picked))) return picked;
+  const root = isRoot ? picked : await picked.getDirectoryHandle(PROJECT_FOLDER, { create: true });
+  return platform ? root.getDirectoryHandle(platform, { create: true }) : root;
 }
 
-/** Opens a project from a folder: the project folder itself, or an app folder with store-assets in it. */
-export async function openFolder(): Promise<LoadedProject & { handle: FileSystemDirectoryHandle }> {
+/**
+ * The projects in a folder someone picked: the folder itself if it's one,
+ * else those in its store-assets folder (store-assets itself, ios, android).
+ */
+export async function projectFoldersIn(picked: FileSystemDirectoryHandle): Promise<Array<{ handle: FileSystemDirectoryHandle; label: string }>> {
+  if (await hasEntry(picked, "storeshots.json", "file")) return [{ handle: picked, label: picked.name }];
+  let root: FileSystemDirectoryHandle | null = picked.name === PROJECT_FOLDER ? picked : null;
+  if (!root && (await hasEntry(picked, PROJECT_FOLDER, "directory"))) root = await picked.getDirectoryHandle(PROJECT_FOLDER);
+  if (!root) return [];
+  const found: Array<{ handle: FileSystemDirectoryHandle; label: string }> = [];
+  if (await hasEntry(root, "storeshots.json", "file")) found.push({ handle: root, label: PROJECT_FOLDER });
+  for (const platform of ["ios", "android"] as const) {
+    if (!(await hasEntry(root, platform, "directory"))) continue;
+    const dir = await root.getDirectoryHandle(platform);
+    if (await hasEntry(dir, "storeshots.json", "file")) found.push({ handle: dir, label: PLATFORM_LABEL[platform] });
+  }
+  return found;
+}
+
+/**
+ * Opens a project from a folder: a project folder, or an app's folder with
+ * projects in store-assets. With several there, `choose` picks one.
+ */
+export async function openFolder(
+  choose: (labels: string[]) => Promise<number | null>,
+): Promise<(LoadedProject & { handle: FileSystemDirectoryHandle }) | null> {
   const picker = (window as unknown as { showDirectoryPicker(o: object): Promise<FileSystemDirectoryHandle> }).showDirectoryPicker;
   const picked = await picker({ mode: "readwrite", id: "storeshots-project" });
-  const handle = await projectFolderIn(picked, false);
-  if (!handle || !(await hasEntry(handle, "storeshots.json", "file"))) {
-    throw new Error(`No storeshots.json in ${picked.name} or ${picked.name}/${PROJECT_FOLDER}. Pick your app's folder, or the folder that contains storeshots.json.`);
+  const found = await projectFoldersIn(picked);
+  if (!found.length) {
+    throw new Error(`No storeshots.json in ${picked.name} or its ${PROJECT_FOLDER} folder. Pick your app's folder, or the folder that contains storeshots.json.`);
   }
+  const i = found.length === 1 ? 0 : await choose(found.map((f) => f.label));
+  if (i === null) return null;
+  const { handle } = found[i]!;
   const files = new Map<string, Blob>();
   await walk(handle, "", files);
   return { ...(await finish(files, handle.name)), handle };

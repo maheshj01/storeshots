@@ -29,6 +29,8 @@ export function Home() {
   const [projects, setProjects] = useState<ProjectMeta[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [ai, setAi] = useState(false);
+  // An app folder with both an iOS and an Android project: which to open.
+  const [choice, setChoice] = useState<{ labels: string[]; done: (i: number | null) => void } | null>(null);
   const zip = useRef<HTMLInputElement>(null);
   const refresh = () => listProjects().then(setProjects);
   useEffect(() => void refresh(), []);
@@ -45,8 +47,8 @@ export function Home() {
 
   const fromFolder = async () => {
     try {
-      const p = await openFolder();
-      await adopt(p, p.handle);
+      const p = await openFolder((labels) => new Promise((done) => setChoice({ labels, done })));
+      if (p) await adopt(p, p.handle);
     } catch (e) {
       if ((e as DOMException).name !== "AbortError") toast((e as Error).message, true);
     }
@@ -65,7 +67,7 @@ export function Home() {
             <Plus aria-hidden /> New project
           </button>
           {canUseFolders && (
-            <button type="button" className="btn" onClick={fromFolder} title="Open your app's folder (its store-assets project) or any folder with a storeshots.json">
+            <button type="button" className="btn" onClick={fromFolder} title="Open your app's folder (its projects in store-assets) or any folder with a storeshots.json">
               <FolderOpen aria-hidden /> Open folder
             </button>
           )}
@@ -148,6 +150,44 @@ export function Home() {
       </div>
       {creating && <NewProjectDialog onClose={() => setCreating(false)} />}
       {ai && <AiDialog onClose={() => setAi(false)} />}
+      {choice && (
+        <div className="scrim" role="dialog" aria-modal="true" aria-labelledby="choose-title">
+          <div className="dialog" style={{ width: "min(380px, 100%)" }}>
+            <header>
+              <h2 id="choose-title">Which project?</h2>
+            </header>
+            <div className="body">
+              <p className="hint">This folder has a project for each store.</p>
+              <div className="choices">
+                {choice.labels.map((label, i) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className="btn"
+                    autoFocus={i === 0}
+                    onClick={() => {
+                      choice.done(i);
+                      setChoice(null);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    choice.done(null);
+                    setChoice(null);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
