@@ -184,4 +184,16 @@ describe("deleting screenshots", () => {
     expect(A.deleteCapture("home.png")).toBe(0);
     expect(capturesOn().filter(Boolean)).toEqual(["home.png", "home.png"]);
   });
+
+  it("lists only images, and deletes a screenshot's description with it", () => {
+    const json = new Blob(["{}"], { type: "application/json" });
+    S().addAssets([
+      ["captures/en/home.json", json],
+      ["captures/en/meta/home.json", json],
+      ["captures/en/notes.txt", json],
+    ]);
+    expect(A.captureList(S().assets, "en")).toEqual(["home.png"]);
+    A.deleteCapture("home.png");
+    expect([...S().assets.keys()].filter((p) => p.startsWith("captures/"))).toEqual(["captures/en/notes.txt"]);
+  });
 });

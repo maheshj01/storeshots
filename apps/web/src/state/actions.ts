@@ -257,7 +257,9 @@ export function deleteCapture(name: string): number {
   const path = `captures/${doc.locales.default}/${name}`;
   const elsewhere = [...S().assets.keys()].some((p) => p !== path && p.startsWith("captures/") && p.endsWith(`/${name}`));
   let uses = 0;
-  S().removeAssets(`Delete screenshot ${name}`, [path], (d) => {
+  // Its description goes with it.
+  const paths = [path, ...captureDescriptions(S().assets, doc.locales.default, name)];
+  S().removeAssets(`Delete screenshot ${name}`, paths, (d) => {
     if (elsewhere) return;
     for (const screen of d.screens) {
       for (const l of screen.layers) {
@@ -271,10 +273,25 @@ export function deleteCapture(name: string): number {
   return uses;
 }
 
-/** Captures in the project, from the default locale folder. */
+const CAPTURE_IMAGE = /\.(png|jpe?g|webp)$/i;
+
+/**
+ * The screenshots in a locale's captures folder: images only, so the
+ * description files beside them (<name>.json, meta/<name>.json) don't show.
+ */
 export function captureList(assets: Map<string, Blob>, locale: string): string[] {
   const prefix = `captures/${locale}/`;
-  return [...assets.keys()].filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length)).sort();
+  return [...assets.keys()]
+    .filter((p) => p.startsWith(prefix))
+    .map((p) => p.slice(prefix.length))
+    .filter((name) => !name.includes("/") && CAPTURE_IMAGE.test(name))
+    .sort();
+}
+
+/** The description files of a screenshot, if it has any. */
+function captureDescriptions(assets: Map<string, Blob>, locale: string, name: string): string[] {
+  const base = name.replace(/\.[^.]+$/, "");
+  return [`captures/${locale}/${base}.json`, `captures/${locale}/meta/${base}.json`].filter((p) => assets.has(p));
 }
 
 export async function addFont(file: File): Promise<string | null> {
